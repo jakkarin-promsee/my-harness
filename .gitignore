@@ -1,0 +1,17 @@
+# secrets — never commit API keys
+.env
+
+# python
+__pycache__/
+*.py[cod]
+.venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# uv
+uv.lock
+
+# os / editor
+.DS_Store
+Thumbs.db
