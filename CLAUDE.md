@@ -43,10 +43,10 @@ Layout: **code** under `src/`, **docs** under `docs/`, **frozen/experimental** u
 | `docs/notes/` | Design notes — one per feature, written *before* implementing. The **why** |
 | `docs/problem.md` | Open problems needing the owner — check when returning to the project |
 | `docs/harness-context-v3.md` | Legacy brief (see below) |
-| `src/harness/` | **The living codebase.** `core/` loop, `providers/`, `tools/`, `cli/`, `prompts/`. Its `CLAUDE.md` is the code map (auto-loaded when editing under `src/`); each subpackage has a `README.md` — the local, file-by-file map |
+| `src/harness/` | **The living codebase.** `core/` loop, `providers/`, `tools/`, `cli/`, `prompts/`. Its `CLAUDE.md` is the code map (auto-loaded when editing under `src/`); the multi-file subpackages (`core/`, `providers/`, `tools/`) each have a `README.md` — the local, file-by-file map (`cli/` and `prompts/` route to `repl.py`'s docstring and note 06 instead) |
 | `tests/` | FakeModel pytest suite — the loop's contract, zero tokens (see `tests/README.md`). Run: `uv run pytest -q` |
 | `acceptance/` | Stage-2 exit gate: live-model suite (see `acceptance/README.md`). Run: `uv run python acceptance/run.py <provider>` |
-| `.claude/skills/` | Task procedures for **coding agents**: `explore`, `implement-feature`, `run-tests`. (Distinct from `commands/`, which is the harness's own runtime feature.) |
+| `.claude/skills/` | Task procedures for **coding agents**: `explore`, `implement-feature`, `run-tests`, `debug-live`, `close-stage`, `evaluate-model`, `commit-progress`. (Distinct from `commands/`, which is the harness's own runtime feature.) |
 | `commands/` | The harness's runtime slash-command library (`/name args` → `commands/name.md`) — read from cwd by the harness, **not** dev context. See `commands/README.md` |
 | `harness.toml` | Permissions policy (allow/ask/deny per tool), versioned on purpose — read from cwd at runtime |
 | `AGENTS.md` | Project memory injected into the harness's **own** system prompt — read from cwd at runtime |
@@ -69,6 +69,10 @@ Don't load the whole repo. To work on one area, open only its column:
 | running or reading tests | `tests/README.md`, `acceptance/README.md` |
 | doing a feature end-to-end | skill: **implement-feature** |
 | understanding before you change | skill: **explore** |
+| a live task fails / agent acts weird | skill: **debug-live** |
+| exit criteria passed, milestone done | skill: **close-stage** |
+| trying a new model as workhorse | skill: **evaluate-model** |
+| session done, tree has changes | skill: **commit-progress** |
 
 ## Working rules (the constitution)
 
