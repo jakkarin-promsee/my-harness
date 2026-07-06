@@ -1,6 +1,6 @@
 # Note 11 — Stage 2.9a: the visible mind (narration, thinking, surviving the token limit)
 
-> Written 2026-07-07, before implementing. Sources studied: Claude Code's transcript behavior (preamble text printed *before* each tool runs; thinking shown dimmed, never re-sent to the model), Anthropic's extended-thinking API docs (thinking blocks from prior turns are stripped server-side — thinking is a per-turn scratchpad, not conversation), Ollama/qwen3 dialect observed in `labs/01` (`message.reasoning`; some templates embed `<think>…</think>` in content instead), and our own `acceptance-local.log` (both local failures = `finish_reason: length` thinking-death).
+> Written 2026-07-07, before implementing. Sources studied: Claude Code's transcript behavior (preamble text printed *before* each tool runs; thinking shown dimmed, never re-sent to the model), Anthropic's extended-thinking API docs (thinking blocks from prior turns are stripped server-side — thinking is a per-turn scratchpad, not conversation), Ollama/qwen3 dialect observed in `archive/labs/01` (`message.reasoning`; some templates embed `<think>…</think>` in content instead), and our own `acceptance-local.log` (both local failures = `finish_reason: length` thinking-death).
 
 ## The problem, in one paragraph
 

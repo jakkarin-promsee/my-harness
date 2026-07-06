@@ -65,7 +65,19 @@ def assemble_chunks(chunks: list) -> dict:
             if frag:
                 reasoning.append(frag)
             for tc in delta.get("tool_calls") or []:
-                slot = calls.setdefault(tc["index"], {
+                # OpenAI/Ollama tag every fragment with `index`; Gemini's
+                # OpenAI-compat stream omits it entirely (KeyError crash on
+                # the first tool call). Synthesize one: a call BEGINS when a
+                # fragment carries an id or a function name; an arguments-only
+                # fragment continues the call already in progress.
+                idx = tc.get("index")
+                if idx is None:
+                    fn = tc.get("function") or {}
+                    if tc.get("id") or fn.get("name") or not calls:
+                        idx = len(calls)          # a new tool call
+                    else:
+                        idx = max(calls)          # more args for the latest
+                slot = calls.setdefault(idx, {
                     "id": None, "type": "function",
                     "function": {"name": "", "arguments": ""},
                 })

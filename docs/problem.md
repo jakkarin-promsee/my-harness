@@ -5,7 +5,7 @@
 
 ## 1. Anthropic adapter is live-untested (deliberate)
 
-`harness/providers/anthropic.py` is fully built and offline-tested (7 tests,
+`src/harness/providers/anthropic.py` is fully built and offline-tested (7 tests,
 mocked HTTP), but per the constitution `ANTHROPIC_API_KEY` stays unset until
 you set it on purpose. When that day comes: put the key in `.env`, then
 `uv run python -m harness anthropic` and run acceptance task B as a smoke

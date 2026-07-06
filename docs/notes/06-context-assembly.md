@@ -12,7 +12,7 @@ The first message is never one hardcoded string; it's **assembled** from layers:
 
 ## What we build
 
-- `harness/prompts/system.md` — the identity/rules template with `{placeholders}`. Editing behavior = editing a text file, no code change.
+- `src/harness/prompts/system.md` — the identity/rules template with `{placeholders}`. Editing behavior = editing a text file, no code change.
 - `core/context.py` — `build_system_prompt(cwd)`: renders the template with an env block (OS, cwd, date, git branch if any) and appends `AGENTS.md` content when the file exists (with a header saying where it came from).
 - REPL uses it; the hardcoded SYSTEM_PROMPT constant dies. An `AGENTS.md` for this repo itself (dogfooding: our harness working in this repo reads it).
 

@@ -21,7 +21,11 @@ import sys
 sys.stdout.reconfigure(encoding="utf-8", errors="replace")
 sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# The package lives under src/; put it on sys.path so `from harness...` resolves
+# even without the editable install (uv run installs it, but this keeps the
+# runner self-contained). Mirrors pythonpath = ["src", "."] in pyproject.toml.
+_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.join(_ROOT, "src"))
 
 from harness.cli.repl import PROVIDERS, make_gate, make_model  # noqa: E402 (side effects wanted)
 from harness.core.context import build_system_prompt  # noqa: E402
@@ -62,7 +66,7 @@ def verify_deps(final: str):
 
 
 def verify_bugfix(final: str):
-    proc = sh("uv run python mvp/fixtures/test_stats.py")
+    proc = sh("uv run python archive/mvp/fixtures/test_stats.py")
     ok = proc.returncode == 0
     return ok, "test exits 0" if ok else "test still failing"
 
@@ -104,12 +108,12 @@ TASKS = [
     {
         "id": "C-find-fix-prove",
         "prompt": (
-            "The test script mvp/fixtures/test_stats.py is failing - run it with: "
-            "uv run python mvp/fixtures/test_stats.py. Find the bug in "
-            "mvp/fixtures/stats.py, fix it, and prove the fix by re-running that script."
+            "The test script archive/mvp/fixtures/test_stats.py is failing - run it with: "
+            "uv run python archive/mvp/fixtures/test_stats.py. Find the bug in "
+            "archive/mvp/fixtures/stats.py, fix it, and prove the fix by re-running that script."
         ),
         "verify": verify_bugfix,
-        "cleanup": lambda: sh("git checkout -- mvp/fixtures/stats.py"),
+        "cleanup": lambda: sh("git checkout -- archive/mvp/fixtures/stats.py"),
     },
     {
         "id": "D-grep",
@@ -125,12 +129,12 @@ TASKS = [
     },
     {
         "id": "F-glob",
-        "prompt": "Using the glob tool, list the .py files directly under harness/core and name them.",
+        "prompt": "Using the glob tool, list the .py files directly under src/harness/core and name them.",
         "verify": verify_glob,
     },
     {
         "id": "G-subagent",
-        "prompt": "Use spawn_subagent with context='fresh' to have a subagent read mvp/ACCEPTANCE.md and report the exact text of its first heading. Then repeat that heading to me.",
+        "prompt": "Use spawn_subagent with context='fresh' to have a subagent read archive/mvp/ACCEPTANCE.md and report the exact text of its first heading. Then repeat that heading to me.",
         "verify": verify_subagent,
     },
 ]

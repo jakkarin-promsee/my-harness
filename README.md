@@ -1,35 +1,88 @@
-# Researcher Harness 🚀
+# researcher-harness
 
-This is a from-scratch project to build and learn about **agent harnesses**. Think of it as a workbench for creating and experimenting with AI "agents" – smart helpers that can understand and interact with your code and files.
+A **from-scratch agent harness** — the loop, tools, providers, and context plumbing
+that sit *under* something like Claude Code — rebuilt by hand to understand how the
+real ones actually work. Learning-first: **understanding beats features, every time.**
 
-## What's the Big Idea? 🤔
+Two reasons it exists:
 
-The main goal is to understand how these agent systems work under the hood. It's a learning project focused on the fundamentals. The current focus is on building a solid, standard harness first, with future plans to customize it for specific needs.
+1. **Learn by rebuilding.** How do Claude Code, Codex CLI, opencode, and aider work
+   under the hood? The fastest way to know is to build one and hit the same walls they did.
+2. **"claude2 insurance."** Own an independent, provider-agnostic harness on this
+   machine — so the day a single AI vendor isn't available here isn't the day work stops.
 
-## Key Pains This Project Addresses:
+It is **not** a product, and **not** an SDK wrapper. One user: the owner. Real research
+work keeps running on Claude Code as usual; this harness doesn't touch it until it earns
+the trust (Stage 3).
 
-1.  **Context Overload:** AI agents often get too much information (like raw file dumps or command outputs) that isn't essential, making it expensive and slow to find the actual important bits (the "signal"). This project aims to help agents focus on the signal and ignore the noise.
-2.  **Manual Prompting:** Reusing prompts for common tasks (like planning, summarizing, or cleaning code) usually involves a lot of manual editing. This harness wants to make prompt reuse easier with templates and smart interviewers that gather the needed info.
-3.  **Learning & Independence:** Understanding how a harness works inside — and owning a working, provider-agnostic one on this machine, whatever happens to any single AI vendor.
+## The three pains it's built around
 
-## Project Stages:
+1. **Signal vs. noise.** Agents drown in context they didn't need — raw file dumps,
+   full command output, tool chatter. Most of it is noise; the answer is a few lines
+   of signal. Paying (in tokens and latency) to bury the signal is the core waste this
+   project attacks.
+2. **Prompt reuse by hand.** Reusing a good prompt (plan / summarize / clean-up) means
+   copy-paste-and-edit every time. The goal: templates plus small interviewers that
+   collect what's missing, so a workflow is `/name args`, not a manual rewrite.
+3. **Learning & independence.** Understand the machine from the inside, and own a
+   working, provider-agnostic copy of it — whatever happens to any one vendor.
 
-The project follows a phased approach:
+## What it does today
 
-- **Stage 0-2:** Build a standard, reliable harness by "copying the seniors" (learning from existing systems). This involves setting up core features for agents to run, communicate, and manage tasks.
-- **Stage 3:** Customize the harness to address the specific pain points mentioned above, making it uniquely yours.
+| Piece | What it is |
+|---|---|
+| **The loop** | One model call → run the tool calls it asks for → append results → repeat. The entire "agent" is [`src/harness/core/loop.py`](src/harness/core/loop.py). |
+| **Tools** | Read / edit files, search, run commands, and a **todo** tool — an external plan the model can't forget. |
+| **Subagents** | Delegate a subtask to a fresh child loop and get back just its result. |
+| **Providers** | Ollama (local, free), Gemini, and Anthropic behind one adapter — swapping is a CLI argument, because all three speak OpenAI-compatible chat completions. |
+| **Visible mind** | Thinking and narration stream live to the terminal (SSE), so you watch it reason and talk instead of staring at a spinner. |
+| **Permissions** | [`harness.toml`](harness.toml) decides per tool: allow / ask / deny. |
+| **Token meter** | Every run reports tokens. The project exists because of context economics, so the cost is always on screen. |
 
-## How It Works:
+## Status
 
-- **The loop:** one model call, execute the tool calls it asks for, append results, repeat (`harness/core/loop.py` — the whole "agent" part).
-- **Agents:** can read/edit files, search, run commands, keep a visible todo plan, and delegate to subagents. Thinking and narration stream live to the terminal.
-- **Providers:** Ollama (local, free), Gemini, and Anthropic behind one adapter interface — swapping is a CLI argument.
-- **Configuration:** `harness.toml` controls what tools may run (allow/ask/deny), ensuring safety and control.
+**Stage 2 complete (2026-07-07).** The harness runs end-to-end on both providers.
 
-## Getting Started:
+- **79 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
+- **Exit gate 7/7 on both providers** (`uv run python acceptance/run.py <provider>`):
+  gemini-2.5-flash-lite (~1,083 output tokens) and local qwen3:4b-instruct (~1,460).
 
-- **Run Tests:** Keep everything working by running `uv run pytest -q` (offline, zero tokens).
-- **Run the Harness:** Launch the system with `uv run python -m harness [ollama|gemini|anthropic] [-y] [--resume] [--sessions]`.
-- **Run the exit gate:** `uv run python acceptance/run.py <provider>` — the live-model acceptance suite.
+Next up is **Stage 3** — the custom layer that turns the three pains above into real
+features. The full staged plan and exit criteria live in [docs/ROADMAP.md](docs/ROADMAP.md).
 
-The full story, staged plan, and exit criteria live in [ROADMAP.md](ROADMAP.md); working rules in [CLAUDE.md](CLAUDE.md).
+## Quickstart
+
+```bash
+# offline test suite — always run after a code change (sub-second, zero tokens)
+uv run pytest -q
+
+# run the harness (local model is free; -y auto-approves tools)
+uv run harness ollama
+uv run harness [ollama|gemini|anthropic] [-y] [--resume] [--sessions]
+#   ...or the module form: uv run python -m harness <provider>
+
+# the live-model acceptance gate
+uv run python acceptance/run.py <provider>
+```
+
+Local dev runs on `qwen3:4b-instruct` via Ollama (4 GB VRAM friendly). Gemini is the
+paid fallback for validating response *quality*; debug loop logic locally so a runaway
+loop costs $0. Anthropic's adapter is built but stays live-untested until the key is set
+deliberately.
+
+## Layout
+
+Code under `src/`, prose under `docs/`, frozen/experimental under `archive/`, and the
+runtime config the harness reads from the working directory stays at root.
+
+| Path | What it is |
+|---|---|
+| `src/harness/` | The living codebase — `core/`, `providers/`, `tools/`, `cli/`, `prompts/` (installable package) |
+| `tests/` | FakeModel pytest suite (the loop's contract, offline) |
+| `acceptance/` | Stage-2 live-model exit gate |
+| `docs/` | [ROADMAP](docs/ROADMAP.md), design [notes/](docs/notes), [open problems](docs/problem.md) |
+| `commands/` | Slash-command template library (`/name args` → `commands/name.md`) |
+| `harness.toml`, `AGENTS.md` | Permissions policy and project memory — read from cwd at runtime |
+| `archive/` | Frozen Stage-1 `mvp/`, throwaway `labs/`, and the real `prompt/` library (Stage-3 raw material) |
+
+Working rules and the project's constitution are in [CLAUDE.md](CLAUDE.md).

@@ -21,7 +21,7 @@ def test_plain_reply_passes_through_with_no_reasoning():
 
 
 def test_reasoning_field_is_popped_out_of_the_message():
-    # qwen3 via Ollama's /v1 endpoint (observed live in labs/01)
+    # qwen3 via Ollama's /v1 endpoint (observed live in archive/labs/01)
     reply = normalize_reply(raw({"role": "assistant", "content": "4",
                                  "reasoning": "2+2 is 4"}))
     assert reply["reasoning"] == "2+2 is 4"

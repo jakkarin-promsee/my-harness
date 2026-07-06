@@ -9,7 +9,7 @@
 
 **Pain 1 — Context economics.** On a typical long research session (500–900k tokens), roughly ~30k tokens (~5%) is signal — written .md files, decisions, conclusions — and ~95% is noise: tool-call protocol overhead, raw file dumps already summarized elsewhere, shell/test output resolved and never referenced again. The only tool available today is universal `/compact`, which (a) summarizes *everything* including the signal, and (b) itself costs tokens, because a model must re-read the whole context to summarize it. The owner wants to *delete the noise* — not pay to re-summarize the signal.
 
-**Pain 2 — Prompt reuse is manual labor.** The `prompt/` folder holds real, battle-tested prompt templates (plan phase, run overnight, summarize, clean project...). But none can be reused 1:1 — every use means hand-editing paths, phase numbers, and context, and re-reading the whole thing to check it's current. Wanted: harness-level support — a template library plus a middleware step that interviews the human for the missing context and assembles the final prompt before dispatching it to a worker. Human-in-the-loop *at the harness level*.
+**Pain 2 — Prompt reuse is manual labor.** The `archive/prompt/` folder holds real, battle-tested prompt templates (plan phase, run overnight, summarize, clean project...). But none can be reused 1:1 — every use means hand-editing paths, phase numbers, and context, and re-reading the whole thing to check it's current. Wanted: harness-level support — a template library plus a middleware step that interviews the human for the missing context and assembles the final prompt before dispatching it to a worker. Human-in-the-loop *at the harness level*.
 
 **Pain 3 — Learning and independence.** The owner doesn't yet know how a harness works inside. This project is the way to find out — and it doubles as insurance: if Claude ever becomes unavailable here, there is still a working, understood, provider-agnostic harness on this machine.
 
@@ -56,7 +56,7 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
   3. Anthropic — [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
   4. Anthropic — [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) (this one is basically Pain 1 written by the seniors)
 - [x] **0.2 Environment setup:** *(done 2026-07-06)* uv 0.11.18 + project init; Ollama 0.31.1 installed; pulled `llama3.2:3b` (fast, clean output) and `qwen3:4b` (smarter, emits a visible `reasoning` field) — **both** emit correct tool calls on the 4 GB GPU. Machine quirk: local TLS interception → `system-certs = true` in pyproject for uv, `truststore` for Python HTTPS. Gemini key in `.env` since 2026-07-06 (never commit it).
-- [x] **0.3 Wire-format lab** (in `labs/`): *(built + run 2026-07-06 on `llama3.2:3b`; Gemini leg of 02 verified by the owner with his AI Studio key — same code, three strings changed)*
+- [x] **0.3 Wire-format lab** (in `archive/labs/`): *(built + run 2026-07-06 on `llama3.2:3b`; Gemini leg of 02 verified by the owner with his AI Studio key — same code, three strings changed)*
   - `00_raw_call.py` — one raw HTTP POST to Ollama's `/v1/chat/completions`, print the JSON. No SDK. See the actual shape of a request/response.
   - `01_tool_roundtrip.py` — send a `tools` array, get `tool_calls` back, execute by hand, send the `role:"tool"` result message, get the final answer. **One full round trip, no loop.** This 50-line file demystifies 80% of the project.
   - `02_provider_swap.py` — same call, `base_url` flipped to Gemini's OpenAI-compatible endpoint. Proof that provider-portability is nearly free at this layer.
@@ -68,14 +68,14 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
 
 ## Stage 1 — MVP (the smallest real harness)
 
-**Goal:** a single-file REPL agent, `mvp/harness.py`, under ~300 lines, that completes a real (tiny) task on this machine. Copy the structure of Ball's tutorial and mini-swe-agent shamelessly.
+**Goal:** a single-file REPL agent, `archive/mvp/harness.py`, under ~300 lines, that completes a real (tiny) task on this machine. Copy the structure of Ball's tutorial and mini-swe-agent shamelessly.
 
 - [x] **1.1 Chat REPL:** while-loop, message list, one model call per turn. *(Streaming print dropped from Stage 1 — SSE + delta-assembled tool calls triple the parsing code and teach nothing about the loop; moved to 2.9. See docs/notes/01-mvp.md.)*
 - [x] **1.2 Four tools only:** `read_file`, `write_file`, `list_dir`, `run_shell`. JSON-schema definitions + a dispatch table. No more tools — resist.
 - [x] **1.3 The agent loop:** model returns `tool_calls` → execute → append results → call again; plain text ends the turn. *(Plus two runaway guards earned in battle: `MAX_STEPS` for the loop, `max_tokens` for one generation, and a single retry on 5xx.)*
 - [x] **1.4 Permission gate:** y/n confirmation printed before every `write_file` and `run_shell`; `-y` auto-approves for scripted runs. (First taste of the permission layer every serious harness has.)
 - [x] **1.5 Token meter:** after every model call, print per-turn and running token usage from the API response. Non-negotiable — this project exists because of token economics, so we measure from day 1.
-- [x] **1.6 Acceptance tasks** *(all three PASS on `gemini-2.5-flash-lite`, B also on `qwen3:4b` — full log in `mvp/ACCEPTANCE.md`)* (write them down in `mvp/ACCEPTANCE.md`):
+- [x] **1.6 Acceptance tasks** *(all three PASS on `gemini-2.5-flash-lite`, B also on `qwen3:4b` — full log in `archive/mvp/ACCEPTANCE.md`)* (write them down in `archive/mvp/ACCEPTANCE.md`):
   - A. "Create fizzbuzz.py and run it, show me the output."
   - B. "Read pyproject.toml and tell me what dependencies this project has."
   - C. A planted buggy file + failing test: "Find the bug, fix it, prove it with the test run."
@@ -92,7 +92,7 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
 
 Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/notes/` → implement → acceptance suite green.** Never two features in flight.
 
-- [x] **2.0 Restructure:** *(done 2026-07-06 — `harness/` package + `tests/`; 14 FakeModel tests pass in 0.17s/zero tokens; acceptance A/B/C re-verified through `python -m harness` on Gemini, B also on local qwen3. `mvp/harness.py` frozen as the Stage 1 artifact. Design note: docs/notes/02-package-structure.md)* single file → package (`core/` loop, `providers/`, `tools/`, `cli/`); pytest with a `FakeModel` (scripted responses) so the loop is testable with zero tokens. *This makes rule 5 ("the harness must be boring") enforceable.*
+- [x] **2.0 Restructure:** *(done 2026-07-06 — `harness/` package + `tests/`; 14 FakeModel tests pass in 0.17s/zero tokens; acceptance A/B/C re-verified through `python -m harness` on Gemini, B also on local qwen3. `archive/mvp/harness.py` frozen as the Stage 1 artifact. Design note: docs/notes/02-package-structure.md)* single file → package (`core/` loop, `providers/`, `tools/`, `cli/`); pytest with a `FakeModel` (scripted responses) so the loop is testable with zero tokens. *This makes rule 5 ("the harness must be boring") enforceable.*
 - [x] **2.1 Provider adapter layer** *(done 2026-07-06; note 03)*: `Model` protocol; OpenAI-compat + native Anthropic adapter (both wire directions, pure-function translation, offline-tested; live test awaits a deliberate key — docs/problem.md #3). ← The "Claude ban insurance" officially lives here.
 - [x] **2.2 Tool quality (the ACI lesson)** *(done 2026-07-06; note 04)*: `edit_file` with the uniqueness rule, bounded `grep`/`glob`, head+tail truncation (errors live at the end of output).
 - [x] **2.3 Sessions** *(done 2026-07-06; note 05)*: per-message JSONL via the loop's `on_message` hook; `--resume [id]`, `--sessions`. (Doubles as the raw-logs-on-disk layer Stage 3.4 needs.)
@@ -115,14 +115,14 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 
 ## Stage 3 — Make it mine (one pain at a time)
 
-**Goal:** now that the base is boring, kill the three pains. Spec source: `harness-context-v3.md` §4 (the feature sketches survive even though its Agent-SDK decision didn't). Order = pain order.
+**Goal:** now that the base is boring, kill the three pains. Spec source: `docs/harness-context-v3.md` §4 (the feature sketches survive even though its Agent-SDK decision didn't). Order = pain order.
 
 - [ ] **3.1 Surgical context ops** (Pain 1 — the payoff):
   - `/prune tools [N]` — delete tool results older than N turns; keep every user/assistant message untouched. Zero model calls, zero token cost — pure list surgery.
   - Auto dump-to-file for known-verbose tool output: full output → disk file; context receives summary + path; the agent re-reads the file only when it needs the detail. (v3 §B — dump, don't truncate.)
   - `/pin` to protect messages; tag messages signal-vs-protocol at creation time so pruning has metadata to work with.
   - **Measure:** signal ratio of live context before/after on a realistic session. Target: flip the 5/95.
-- [ ] **3.2 Prompt middleware** (Pain 2): migrate `prompt/` into structured templates with declared slots → an intake step interviews the human for missing slots and current-phase context → assembled prompt shown for approval → dispatched to a fresh worker session. Human-in-the-loop at the harness level.
+- [ ] **3.2 Prompt middleware** (Pain 2): migrate `archive/prompt/` into structured templates with declared slots → an intake step interviews the human for missing slots and current-phase context → assembled prompt shown for approval → dispatched to a fresh worker session. Human-in-the-loop at the harness level.
 - [ ] **3.3 Checkpoint & resume for long runs** (v3 §D): periodic checkpoint files during a run; after a crash / rate limit / sleep-mode laptop, a new session boots from the last checkpoint instead of re-exploring. Retires the "previous agent got usage limit 🥺" restart prompt forever.
 - [ ] **3.4 Findings channel** (v3 §A + D3): a `report_finding` tool with the fixed schema (`status`, `summary`, `key_evidence`, **`ruled_out` mandatory**, `confidence`, `open_question`, `artifact_paths`); subagents write findings to a shared file; the orchestrator context receives findings only — raw logs stay on disk (already built in 2.3).
 - [ ] **3.5 Fork-vs-fresh policy as commands** (v3 §C): `/check` = fork with full context (inside-view consistency); `/audit` = fresh subagent given only the finished artifact (outside-view blind-spot detection; inherited context forbidden).

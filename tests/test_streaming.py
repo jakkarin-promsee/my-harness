@@ -76,6 +76,27 @@ def test_tool_call_arguments_accumulate_by_index():
     assert calls[1]["function"]["name"] == "glob"
 
 
+def test_tool_calls_assemble_without_index_gemini_dialect():
+    # Gemini's OpenAI-compat stream omits `index` on tool-call deltas — the
+    # crash that took local-ok/gemini-KeyError to debug. A call begins on
+    # id/name; arguments-only fragments continue the latest one.
+    body = assemble_chunks([
+        delta_chunk({"tool_calls": [
+            {"id": "a", "function": {"name": "grep", "arguments": '{"pat'}},
+        ]}),
+        delta_chunk({"tool_calls": [
+            {"function": {"arguments": 'tern": "x"}'}},   # no id, no name
+        ]}),
+        delta_chunk({"tool_calls": [
+            {"id": "b", "function": {"name": "glob", "arguments": "{}"}},
+        ]}, finish="tool_calls"),
+    ])
+    calls = body["choices"][0]["message"]["tool_calls"]
+    assert [c["id"] for c in calls] == ["a", "b"]         # not merged into one
+    assert json.loads(calls[0]["function"]["arguments"]) == {"pattern": "x"}
+    assert calls[1]["function"]["name"] == "glob"
+
+
 def test_usage_is_adopted_from_the_trailing_chunk():
     body = assemble_chunks([
         delta_chunk({"content": "ok"}, finish="stop"),

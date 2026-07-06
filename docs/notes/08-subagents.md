@@ -1,6 +1,6 @@
 # Note 08 — Stage 2.6: subagents (spawn with fresh | fork)
 
-> Written 2026-07-06, before implementing. Sources studied: Claude Code's Agent tool (fresh context, summary returned, results not auto-trusted), opencode subsessions, the fork-vs-fresh analysis in `harness-context-v3.md` §C (the Stage 3.5 spec source).
+> Written 2026-07-06, before implementing. Sources studied: Claude Code's Agent tool (fresh context, summary returned, results not auto-trusted), opencode subsessions, the fork-vs-fresh analysis in `docs/harness-context-v3.md` §C (the Stage 3.5 spec source).
 
 ## What the seniors do
 

@@ -8,10 +8,10 @@ Every mature harness separates the same four concerns, whatever it names them:
 
 | Concern | mini-swe-agent | opencode | ours |
 |---|---|---|---|
-| The loop | `agents/default.py` | `session/` | `harness/core/loop.py` |
-| Talking to a provider | `models/` | `provider/` | `harness/providers/openai_compat.py` |
-| Tools | `environments/` (bash only) | `tool/` | `harness/tools/basic.py` |
-| Entry point / UI | `run/` | `cli/` | `harness/cli/repl.py` |
+| The loop | `agents/default.py` | `session/` | `src/harness/core/loop.py` |
+| Talking to a provider | `models/` | `provider/` | `src/harness/providers/openai_compat.py` |
+| Tools | `environments/` (bash only) | `tool/` | `src/harness/tools/basic.py` |
+| Entry point / UI | `run/` | `cli/` | `src/harness/cli/repl.py` |
 
 And the key testing idea, straight from mini-swe-agent's own test suite: **a deterministic fake model with scripted replies**. The loop never knows whether replies come from Gemini or from a list — so every loop behavior (tool dispatch, guards, denial, truncation) is testable in milliseconds for zero tokens.
 
@@ -29,7 +29,7 @@ harness/
 tests/
   test_loop.py        FakeModel-driven: the loop's full contract
   test_tools.py       the 4 tools against tmp_path
-mvp/harness.py        FROZEN — the Stage 1 artifact stays as the learning record
+archive/mvp/harness.py        FROZEN — the Stage 1 artifact stays as the learning record
 ```
 
 **The load-bearing design move:** the loop's only dependencies are *injected* — a `model` with `.complete()`, a tool `registry`, an `approve(name, args)` callable, an `on_usage` callback. The CLI injects the real HTTP model and the `input()` gate; tests inject `FakeModel` and lambdas. The loop cannot tell the difference. (This seam is also where Stage 2.1's provider adapter will plug in.)

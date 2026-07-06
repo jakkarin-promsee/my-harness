@@ -1,3 +1,7 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project]
 name = "researcher-harness"
 version = "0.1.0"
@@ -8,8 +12,19 @@ dependencies = [
     "truststore>=0.10.4",
 ]
 
+[project.scripts]
+# Console entry point: `uv run harness <provider>`. `python -m harness` still
+# works too (harness/__main__.py). Both resolve the installed package now,
+# not a cwd import trick — that's the whole point of the src/ layout.
+harness = "harness.cli.repl:main"
+
 [tool.uv]
 system-certs = true
+
+[tool.hatch.build.targets.wheel]
+# The package lives at src/harness; tell hatchling where to find it so the
+# editable install (done automatically by `uv run`) maps `harness` -> src/harness.
+packages = ["src/harness"]
 
 [dependency-groups]
 dev = [
@@ -17,10 +32,10 @@ dev = [
 ]
 
 [tool.pytest.ini_options]
-# Only tests/ — mvp/fixtures/test_stats.py matches test_*.py but is an
+# Only tests/ — archive/mvp/fixtures/test_stats.py matches test_*.py but is an
 # acceptance fixture (it sys.exit(1)s by design), not a pytest test.
 testpaths = ["tests"]
-# The harness/ package lives at repo root and isn't pip-installed;
-# put the root on sys.path so tests can import it (same thing the
-# `python -m harness` entry point gets for free from cwd).
-pythonpath = ["."]
+# Put src/ on sys.path (for the `harness` package) and the repo root (for
+# `tests.fakes`). The editable install also exposes `harness`, but listing src
+# here keeps the suite runnable with a plain `pytest` even before a sync.
+pythonpath = ["src", "."]

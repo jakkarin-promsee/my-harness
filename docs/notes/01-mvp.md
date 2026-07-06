@@ -1,4 +1,4 @@
-# Note 01 — Stage 1 MVP design (`mvp/harness.py`)
+# Note 01 — Stage 1 MVP design (`archive/mvp/harness.py`)
 
 > Written 2026-07-06, before implementation (working rule 6). Sources studied: Thorsten Ball's *How to Build an Agent* (~315-line tutorial agent), mini-swe-agent `agents/default.py` (run/step loop, limits), aider (`--yes` flag precedent).
 
@@ -14,9 +14,9 @@
 
 ## What we build
 
-One file, `mvp/harness.py`, target < 300 lines. The six organs from [00-anatomy.md](00-anatomy.md) map to code directly:
+One file, `archive/mvp/harness.py`, target < 300 lines. The six organs from [00-anatomy.md](00-anatomy.md) map to code directly:
 
-1. **Provider client** — `call_model()`: one `requests.post`, provider picked from the labs/02 dict (`ollama` default, `gemini` by argv).
+1. **Provider client** — `call_model()`: one `requests.post`, provider picked from the archive/labs/02 dict (`ollama` default, `gemini` by argv).
 2. **Message list** — `messages`, born with one system prompt, grows forever (Stage 1 does nothing about that — that's the point of measuring it).
 3. **Tool registry** — 4 functions + 4 JSON-schema adverts + a `REGISTRY` dispatch dict: `read_file`, `write_file`, `list_dir`, `run_shell`. No more. Resist.
 4. **The loop** — `agent_turn()`: call → append reply → if `tool_calls`, execute + append results → repeat. Bounded by `MAX_STEPS`.
@@ -36,4 +36,4 @@ Plus the non-negotiable **token meter**: after every API call, print per-call an
 
 ## How we know it works
 
-[`mvp/ACCEPTANCE.md`](../../mvp/ACCEPTANCE.md): three tasks (fizzbuzz create+run, dependency read, planted-bug fix with test proof), each with the exact command and pass signal, plus a results log per model. Exit criteria: all three pass on some model (local preferred, Gemini allowed), token meter visible, every line explainable.
+[`archive/mvp/ACCEPTANCE.md`](../../archive/mvp/ACCEPTANCE.md): three tasks (fizzbuzz create+run, dependency read, planted-bug fix with test proof), each with the exact command and pass signal, plus a results log per model. Exit criteria: all three pass on some model (local preferred, Gemini allowed), token meter visible, every line explainable.

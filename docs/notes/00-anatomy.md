@@ -1,6 +1,6 @@
 # Note 00 — The Anatomy of a Harness
 
-> Written during Stage 0 recon (2026-07-06). Sources: `labs/00–02` (run them, read them), mini-swe-agent's `agents/default.py`, Thorsten Ball's *How to Build an Agent*, Anthropic's *Building Effective Agents* and *Effective Context Engineering*.
+> Written during Stage 0 recon (2026-07-06). Sources: `archive/labs/00–02` (run them, read them), mini-swe-agent's `agents/default.py`, Thorsten Ball's *How to Build an Agent*, Anthropic's *Building Effective Agents* and *Effective Context Engineering*.
 >
 > **Owner's exit exam is at the bottom.** Stage 0 isn't done because this file exists — it's done when you can answer the quiz without looking.
 
@@ -12,11 +12,11 @@ A harness is a program that keeps a `messages` list, sends the *whole* list to a
 
 | # | Organ | What it does | Where you saw it |
 |---|---|---|---|
-| 1 | **Provider client** | One HTTP POST to `/v1/chat/completions`; JSON in, JSON out. No hidden server state — the "conversation" lives on OUR side. | `labs/00` — the whole file |
-| 2 | **Message list (the context)** | The `messages` array. Every call re-sends all of it; `usage.prompt_tokens` grows every turn. This list is the thing Pain #1 is about — and in our own harness, editing it is just Python list surgery. | `labs/00` request body; mini-swe-agent's `self.messages` |
-| 3 | **Tool registry + executor** | Local functions plus their JSON-schema "advertisements". The model only ever *asks*; the harness runs the function and appends a `role:"tool"` message with the echoed `tool_call_id`. | `labs/01` steps 0–4 |
-| 4 | **The loop** | `while finish_reason == "tool_calls": execute, append, call again`. That's the entire "agent" part. Everything else is decoration. | `labs/01` did one iteration by hand; mini-swe-agent's `run()` |
-| 5 | **System prompt** | The first message: identity, rules, environment info. In real harnesses this is where most behavior-shaping lives (Claude Code's is thousands of tokens). | `labs/00` — the one-liner system message |
+| 1 | **Provider client** | One HTTP POST to `/v1/chat/completions`; JSON in, JSON out. No hidden server state — the "conversation" lives on OUR side. | `archive/labs/00` — the whole file |
+| 2 | **Message list (the context)** | The `messages` array. Every call re-sends all of it; `usage.prompt_tokens` grows every turn. This list is the thing Pain #1 is about — and in our own harness, editing it is just Python list surgery. | `archive/labs/00` request body; mini-swe-agent's `self.messages` |
+| 3 | **Tool registry + executor** | Local functions plus their JSON-schema "advertisements". The model only ever *asks*; the harness runs the function and appends a `role:"tool"` message with the echoed `tool_call_id`. | `archive/labs/01` steps 0–4 |
+| 4 | **The loop** | `while finish_reason == "tool_calls": execute, append, call again`. That's the entire "agent" part. Everything else is decoration. | `archive/labs/01` did one iteration by hand; mini-swe-agent's `run()` |
+| 5 | **System prompt** | The first message: identity, rules, environment info. In real harnesses this is where most behavior-shaping lives (Claude Code's is thousands of tokens). | `archive/labs/00` — the one-liner system message |
 | 6 | **UI / REPL** | Whatever lets the human type and read: a terminal REPL at minimum. Also where permission gates ("run this shell command? y/n") live. | Not built yet — that's Stage 1 |
 
 ## Two schools of getting actions from the model
