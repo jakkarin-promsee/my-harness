@@ -25,6 +25,7 @@ from dotenv import load_dotenv
 from harness.core import budget, commands
 from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
+from harness.core.permissions import load_policy
 from harness.core.session import SessionStore
 from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
@@ -75,11 +76,17 @@ def make_model(cfg: dict):
 # identity template + environment block + AGENTS.md project memory.
 
 
-def make_gate(auto_approve: bool):
-    """First taste of the permission layer every serious harness has."""
+def make_gate(auto_approve: bool, policy):
+    """The permission gate, policy-aware (docs/notes/10-permissions-v2.md):
+    deny -> refuse flatly (-y can NEVER override it);
+    allow -> run silently; ask -> y/N prompt (-y upgrades to yes)."""
 
     def approve(name: str, arguments: dict) -> bool:
-        if auto_approve:
+        decision = policy.decide(name)
+        if decision == "deny":
+            print(f"  [policy] {name} is denied by harness.toml")
+            return False
+        if decision == "allow" or auto_approve:
             return True
         preview = json.dumps(arguments)
         if len(preview) > 200:
@@ -146,7 +153,8 @@ def main() -> None:
     def persist(message: dict) -> None:
         store.append(session_id, message)
 
-    gate = make_gate(auto_approve)
+    policy = load_policy()
+    gate = make_gate(auto_approve, policy)
 
     # The spawn tool closes over the LIVE messages list (rebound on /compact),
     # hence the lambda instead of the list itself.
@@ -154,7 +162,7 @@ def main() -> None:
         model=model,
         registry=basic.REGISTRY,
         schemas=basic.SCHEMAS,
-        needs_permission=basic.NEEDS_PERMISSION,
+        needs_permission=set(basic.REGISTRY),  # child: gate decides via policy
         approve=gate,
         emit=print,
         get_parent_messages=lambda: messages,
@@ -168,7 +176,9 @@ def main() -> None:
         model=model,
         registry=registry,
         schemas=schemas,
-        needs_permission=basic.NEEDS_PERMISSION,
+        # Every tool goes through the gate; the POLICY decides who runs
+        # silently (allow), who prompts (ask), who never runs (deny).
+        needs_permission=set(registry),
         approve=gate,
         on_usage=on_usage,
         on_message=persist,

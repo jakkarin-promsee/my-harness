@@ -84,7 +84,7 @@ def test_denied_permission_reports_without_executing():
         needs_permission={"t"},
         approve=lambda name, args: False,
     ).run_turn(messages)
-    assert messages[2]["content"] == "User denied permission for this call."
+    assert messages[2]["content"] == "Permission denied for this call."
 
 
 def test_tool_failures_become_error_text_not_crashes():

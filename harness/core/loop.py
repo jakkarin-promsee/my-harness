@@ -116,7 +116,7 @@ class Agent:
         if name not in self.registry:
             return f"ERROR: unknown tool {name!r}"
         if name in self.needs_permission and not self.approve(name, arguments):
-            return "User denied permission for this call."
+            return "Permission denied for this call."
         try:
             return self.registry[name](**arguments) or "(empty output)"
         except TypeError as e:
