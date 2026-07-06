@@ -137,8 +137,15 @@ class OpenAICompatModel:
         # "content" fragments as they arrive, one "end" when the stream closes.
         # None = the classic one-shot request; behavior is identical.
         self.on_delta = on_delta
+        # /think knob (docs/notes/18): off|on|low|medium|high, or None = never
+        # send anything. Maps to reasoning_effort on this wire; "off" is
+        # OMITTED because our compat providers (gemini flash-lite) default to
+        # thinking-off — a thinking-DEFAULT model would need more than this.
+        self.think = None
 
-    def complete(self, messages: list, tools: list) -> dict:
+    def body(self, messages: list, tools: list) -> dict:
+        """The request payload as a pure function of adapter state — split
+        from complete() so translation (think mapping) tests skip HTTP."""
         body = {
             "model": self.model,
             "messages": messages,
@@ -151,10 +158,16 @@ class OpenAICompatModel:
             # loop) — overruns end as finish_reason "length".
             "max_tokens": self.max_tokens,
         }
+        if self.think and self.think != "off":
+            body["reasoning_effort"] = "medium" if self.think == "on" else self.think
         if self.on_delta:
             body["stream"] = True
             # Without this the stream carries no token counts at all.
             body["stream_options"] = {"include_usage": True}
+        return body
+
+    def complete(self, messages: list, tools: list) -> dict:
+        body = self.body(messages, tools)
         # One retry on 5xx: cloud endpoints throw transient 503s under load
         # (measured live on Gemini flash-lite). A 4xx is OUR bug and must not
         # be retried — same request, same rejection.

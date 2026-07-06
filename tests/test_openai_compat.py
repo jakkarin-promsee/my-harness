@@ -63,3 +63,17 @@ def test_tool_calls_survive_normalization_untouched():
     assert reply["message"]["tool_calls"] == calls
     assert reply["reasoning"] == "which tool?"
     assert reply["finish_reason"] == "tool_calls"
+
+
+# ---- 2.12: think -> reasoning_effort mapping (docs/notes/18) ----------------
+
+def test_think_maps_to_reasoning_effort():
+    from harness.providers.openai_compat import OpenAICompatModel
+    m = OpenAICompatModel("http://x/v1", "k", "model")
+    assert "reasoning_effort" not in m.body([], [])   # None -> never sent
+    m.think = "off"
+    assert "reasoning_effort" not in m.body([], [])   # flash-lite defaults off
+    m.think = "on"
+    assert m.body([], [])["reasoning_effort"] == "medium"
+    m.think = "high"
+    assert m.body([], [])["reasoning_effort"] == "high"

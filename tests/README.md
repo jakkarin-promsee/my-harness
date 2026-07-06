@@ -17,8 +17,9 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 | `test_tools.py` | the 7 basic file/shell tools |
 | `test_todo.py` | todo replace-semantics + status validation |
 | `test_subagent.py` | fresh vs fork, child-tools-minus-spawn, only-final-text-returns |
-| `test_openai_compat.py` / `test_streaming.py` | the OpenAI adapter + SSE deltas |
-| `test_anthropic.py` | the six-way translation round-trip |
+| `test_openai_compat.py` / `test_streaming.py` | the OpenAI adapter + SSE deltas; think→reasoning_effort (2.12) |
+| `test_ollama_native.py` | the native /api/chat dialect: both directions, think mapping, NDJSON streams (2.12) |
+| `test_anthropic.py` | the six-way translation round-trip; think→budgets (2.12) |
 | `test_permissions.py` | allow/ask/deny + deny > ask > allow; modes + the cwd scoping rule (2.10) |
 | `test_agents.py` | role frontmatter parsing + discovery (2.11) |
 | `test_session.py` | JSONL append / load / resume |

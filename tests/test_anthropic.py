@@ -118,3 +118,33 @@ def test_complete_roundtrip_with_mocked_http(monkeypatch):
     assert captured["headers"]["anthropic-version"]          # version header present
     assert captured["payload"]["system"] == "s"              # system lifted out
     assert captured["payload"]["max_tokens"] == 2000         # required field
+
+
+# ---- 2.12: think -> extended-thinking budgets (docs/notes/18) ---------------
+
+def test_think_maps_to_budget_and_raises_max_tokens():
+    m = anthropic.AnthropicModel("k", "model", max_tokens=2000)
+    assert "thinking" not in m.body([], [])           # None -> never sent
+    m.think = "off"
+    assert "thinking" not in m.body([], [])
+    m.think = "low"
+    body = m.body([], [])
+    assert body["thinking"] == {"type": "enabled", "budget_tokens": 1024}
+    assert body["max_tokens"] == 2024                  # budget+1000 > original 2000
+    m.think = "high"
+    body = m.body([], [])
+    assert body["thinking"]["budget_tokens"] == 16384
+    assert body["max_tokens"] == 17384                 # raised past the budget
+
+
+def test_thinking_blocks_normalize_to_reasoning():
+    reply = anthropic.from_anthropic_reply({
+        "content": [
+            {"type": "thinking", "thinking": "let me reason", "signature": "sig"},
+            {"type": "text", "text": "answer"},
+        ],
+        "stop_reason": "end_turn",
+        "usage": {"input_tokens": 10, "output_tokens": 5},
+    })
+    assert reply["reasoning"] == "let me reason"
+    assert reply["message"]["content"] == "answer"

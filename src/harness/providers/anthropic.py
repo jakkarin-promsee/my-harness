@@ -23,6 +23,13 @@ STOP_REASON_MAP = {
     "max_tokens": "length",
 }
 
+# /think levels -> extended-thinking budget_tokens (docs/notes/18). The API
+# requires max_tokens > budget, so complete() raises max_tokens to match.
+# CAVEAT on record: thinking + tool use needs the thinking block replayed
+# within the turn (Anthropic returns signed blocks) — our strip-always policy
+# (2.9a) conflicts; resolve during the live smoke test (docs/problem.md).
+THINK_BUDGETS = {"low": 1024, "on": 4096, "medium": 4096, "high": 16384}
+
 
 def to_anthropic_tools(schemas: list) -> list:
     """OpenAI {type:function, function:{name,description,parameters}}
@@ -85,6 +92,7 @@ def to_anthropic_messages(messages: list) -> tuple[str, list]:
 def from_anthropic_reply(data: dict) -> dict:
     """Anthropic response -> the normalized shape the loop speaks."""
     texts = [b["text"] for b in data["content"] if b["type"] == "text"]
+    thinking = [b.get("thinking", "") for b in data["content"] if b["type"] == "thinking"]
     tool_calls = [
         {
             "id": b["id"],
@@ -109,6 +117,7 @@ def from_anthropic_reply(data: dict) -> dict:
             "prompt_tokens": usage.get("input_tokens", 0),
             "completion_tokens": usage.get("output_tokens", 0),
         },
+        "reasoning": "\n".join(t for t in thinking if t) or None,
     }
 
 
@@ -120,8 +129,11 @@ class AnthropicModel:
         self.url = url
         self.timeout = timeout
         self.max_tokens = max_tokens
+        self.think = None  # off|on|low|medium|high (docs/notes/18), None = never send
 
-    def complete(self, messages: list, tools: list) -> dict:
+    def body(self, messages: list, tools: list) -> dict:
+        """The full request payload, as a pure function of adapter state —
+        split from complete() so the translation is testable without HTTP."""
         system, anthropic_messages = to_anthropic_messages(messages)
         payload = {
             "model": self.model,
@@ -131,6 +143,15 @@ class AnthropicModel:
         }
         if system:
             payload["system"] = system
+        if self.think and self.think != "off":
+            budget = THINK_BUDGETS.get(self.think, 4096)
+            payload["thinking"] = {"type": "enabled", "budget_tokens": budget}
+            # The API rejects budget >= max_tokens; give the answer headroom.
+            payload["max_tokens"] = max(self.max_tokens, budget + 1000)
+        return payload
+
+    def complete(self, messages: list, tools: list) -> dict:
+        payload = self.body(messages, tools)
         for attempt in (1, 2):  # same 5xx policy as the openai-compat adapter
             resp = requests.post(
                 self.url,

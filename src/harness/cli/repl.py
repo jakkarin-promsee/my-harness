@@ -37,19 +37,21 @@ from harness.core.permissions import ModeSet, load_modes
 from harness.core.session import SessionStore
 from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
+from harness.providers.ollama_native import OllamaNativeModel
 from harness.providers.openai_compat import OpenAICompatModel
 from harness.tools import basic
 from harness.tools.todo import make_todo_tool
 
 load_dotenv()
 
-# The provider registry. Two adapters cover everything we can reach:
-# "openai" (Ollama, Gemini, OpenRouter, vLLM — one wire format) and
+# The provider registry. Three adapters cover everything we can reach:
+# "ollama-native" (/api/chat — the only wire where `think` works, note 18),
+# "openai" (Gemini, OpenRouter, vLLM — one compat format) and
 # "anthropic" (its own dialect; see providers/anthropic.py).
 PROVIDERS = {
     "ollama": {
-        "kind": "openai",
-        "url": "http://localhost:11434/v1/chat/completions",
+        "kind": "ollama-native",
+        "url": "http://localhost:11434/api/chat",
         "key": "ollama",
         "model": os.getenv("OLLAMA_MODEL", "qwen3:4b-instruct"),
         # Ollama's window is set machine-wide by this env var (8192 on this
@@ -89,6 +91,9 @@ def make_model(cfg: dict, on_delta=None):
             )
         # The insurance adapter doesn't stream (docs/notes/12-streaming.md).
         return AnthropicModel(cfg["key"], cfg["model"], max_tokens=max_tokens)
+    if cfg["kind"] == "ollama-native":
+        return OllamaNativeModel(cfg["url"], cfg["model"],
+                                 max_tokens=max_tokens, on_delta=on_delta)
     return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"],
                              max_tokens=max_tokens, on_delta=on_delta)
 
@@ -224,6 +229,7 @@ def main() -> None:
         print(f"  [!] agent {active_agent!r} pins unknown provider "
               f"{agent_specs[active_agent].model!r} - using {provider_name}")
     model = make_model(primary_cfg, on_delta=StreamPrinter())
+    model.think = agent_specs[active_agent].think  # role default; /think overrides
     child_model = make_model(provider)
 
     # The token meter: non-negotiable from day 1 — this project exists
@@ -318,7 +324,20 @@ def main() -> None:
         # ---- slash commands: builtins first, then template commands ----
         if user == "/help":
             templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
-            print("  builtins: /tokens /compact /mode /agent /help | templates (commands/*.md): " + templates)
+            print("  builtins: /tokens /compact /mode /agent /think /help | templates (commands/*.md): " + templates)
+            continue
+        if user == "/think" or user.startswith("/think "):
+            value = user.removeprefix("/think").strip()
+            if not value:
+                print(f"  think: {agent.model.think or 'off'} (off|on|low|medium|high)")
+                continue
+            if value not in {"off", "on", "low", "medium", "high"}:
+                print(f"  invalid value {value!r} (off|on|low|medium|high)")
+                continue
+            # A session knob: the primary AND the subagent model follow it.
+            agent.model.think = value
+            child_model.think = value
+            print(f"  think: {value}")
             continue
         if user == "/agent" or user.startswith("/agent "):
             name = user.removeprefix("/agent").strip()
@@ -341,6 +360,7 @@ def main() -> None:
             if sw.model and sw.model not in PROVIDERS:
                 print(f"  [!] agent {name!r} pins unknown provider {sw.model!r} - keeping {provider_name}")
             agent.model = make_model(cfg, on_delta=StreamPrinter())
+            agent.model.think = sw.think  # the role's default; /think overrides
             window = cfg.get("context_window", 0)
             active_agent = name
             # /compact precedent: memory carries the history over; the on-disk
