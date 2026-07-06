@@ -14,11 +14,77 @@ from the message, because thinking is a per-turn scratchpad, not
 conversation: re-sending it wastes window, persisting it bloats sessions.
 """
 
+import json
 import re
 
 import requests
 
 THINK_TAG = re.compile(r"^\s*<think>(.*?)</think>\s*", re.DOTALL)
+
+
+def parse_sse(lines) -> list[dict]:
+    """SSE body -> parsed chunk dicts (docs/notes/12-streaming.md).
+
+    Wire format: every event is a line 'data: {json}'; blank lines are
+    keep-alive separators; 'data: [DONE]' terminates the stream."""
+    chunks = []
+    for line in lines:
+        if isinstance(line, bytes):
+            line = line.decode("utf-8", errors="replace")
+        if not line.startswith("data: "):
+            continue
+        payload = line[len("data: "):]
+        if payload.strip() == "[DONE]":
+            break
+        chunks.append(json.loads(payload))
+    return chunks
+
+
+def assemble_chunks(chunks: list) -> dict:
+    """Streamed fragments -> ONE body shaped like a non-streaming response,
+    so normalize_reply() stays the single normalization path.
+
+    Deltas for humans, complete objects for the loop: content/reasoning
+    concatenate; tool calls merge by `index` (id and name arrive once,
+    `arguments` accumulates piece by piece and is only valid JSON at the
+    end — which is exactly why a tool call must never execute mid-stream)."""
+    content: list[str] = []
+    reasoning: list[str] = []
+    calls: dict[int, dict] = {}
+    finish, usage = None, None
+    for chunk in chunks:
+        if chunk.get("usage"):
+            usage = chunk["usage"]  # the stream_options include_usage chunk
+        for choice in chunk.get("choices", []):
+            if choice.get("finish_reason"):
+                finish = choice["finish_reason"]
+            delta = choice.get("delta") or {}
+            if delta.get("content"):
+                content.append(delta["content"])
+            frag = delta.get("reasoning") or delta.get("reasoning_content")
+            if frag:
+                reasoning.append(frag)
+            for tc in delta.get("tool_calls") or []:
+                slot = calls.setdefault(tc["index"], {
+                    "id": None, "type": "function",
+                    "function": {"name": "", "arguments": ""},
+                })
+                if tc.get("id"):
+                    slot["id"] = tc["id"]
+                fn = tc.get("function") or {}
+                if fn.get("name"):
+                    slot["function"]["name"] = fn["name"]
+                if fn.get("arguments"):
+                    slot["function"]["arguments"] += fn["arguments"]
+    message: dict = {"role": "assistant", "content": "".join(content) or None}
+    if reasoning:
+        message["reasoning"] = "".join(reasoning)  # normalize_reply pops it
+    if calls:
+        message["tool_calls"] = [calls[i] for i in sorted(calls)]
+    return {
+        "choices": [{"message": message, "finish_reason": finish or "stop"}],
+        "usage": usage,
+    }
 
 
 def normalize_reply(data: dict) -> dict:
@@ -43,19 +109,40 @@ def normalize_reply(data: dict) -> dict:
 
 class OpenAICompatModel:
     def __init__(self, url: str, key: str, model: str, timeout: int = 600,
-                 max_tokens: int = 2000):
+                 max_tokens: int = 2000, on_delta=None):
         self.url = url
         self.key = key  # Ollama ignores auth, but the header must exist
         self.model = model
         # Generous timeout: a 4B model thinking hard on a 4 GB laptop GPU can
         # legitimately take minutes per call (measured in Stage 1: 300s wasn't enough).
+        # (With streaming, requests applies it between chunks — even better.)
         self.timeout = timeout
         # Per-provider, not hardcoded: thinking models spend their budget on
         # reasoning BEFORE the tool call — 2000 was measured as thinking-death
         # on qwen3 (acceptance-local.log, tasks A and G).
         self.max_tokens = max_tokens
+        # on_delta(kind, text) makes this a STREAMING client: "reasoning" and
+        # "content" fragments as they arrive, one "end" when the stream closes.
+        # None = the classic one-shot request; behavior is identical.
+        self.on_delta = on_delta
 
     def complete(self, messages: list, tools: list) -> dict:
+        body = {
+            "model": self.model,
+            "messages": messages,
+            "tools": tools,
+            # No temperature override: qwen3 + temperature 0 (greedy
+            # decoding) spirals into infinite repetition while
+            # "thinking" — measured as a 600s timeout in Stage 1.
+            # Models ship tuned defaults; trust them. max_tokens is
+            # the runaway-GENERATION guard (max_steps guards the
+            # loop) — overruns end as finish_reason "length".
+            "max_tokens": self.max_tokens,
+        }
+        if self.on_delta:
+            body["stream"] = True
+            # Without this the stream carries no token counts at all.
+            body["stream_options"] = {"include_usage": True}
         # One retry on 5xx: cloud endpoints throw transient 503s under load
         # (measured live on Gemini flash-lite). A 4xx is OUR bug and must not
         # be retried — same request, same rejection.
@@ -63,22 +150,38 @@ class OpenAICompatModel:
             resp = requests.post(
                 self.url,
                 headers={"Authorization": f"Bearer {self.key}"},
-                json={
-                    "model": self.model,
-                    "messages": messages,
-                    "tools": tools,
-                    # No temperature override: qwen3 + temperature 0 (greedy
-                    # decoding) spirals into infinite repetition while
-                    # "thinking" — measured as a 600s timeout in Stage 1.
-                    # Models ship tuned defaults; trust them. max_tokens is
-                    # the runaway-GENERATION guard (max_steps guards the
-                    # loop) — overruns end as finish_reason "length".
-                    "max_tokens": self.max_tokens,
-                },
+                json=body,
                 timeout=self.timeout,
+                stream=bool(self.on_delta),
             )
             if resp.status_code >= 500 and attempt == 1:
                 print(f"  [!] {resp.status_code} from provider - retrying once...")
                 continue
             resp.raise_for_status()
-            return normalize_reply(resp.json())
+            if not self.on_delta:
+                return normalize_reply(resp.json())
+            return self._stream(resp)
+
+    def _stream(self, resp) -> dict:
+        """Read the SSE wire: fragments to on_delta as they arrive, the
+        assembled whole to the loop at the end. `streamed: True` tells the
+        loop not to re-print what the human already watched."""
+        chunks: list[dict] = []
+        emitted = False
+        for line in resp.iter_lines():  # skips keep-alive blanks itself
+            for chunk in parse_sse([line]):
+                chunks.append(chunk)
+                for choice in chunk.get("choices", []):
+                    delta = choice.get("delta") or {}
+                    frag = delta.get("reasoning") or delta.get("reasoning_content")
+                    if frag:
+                        self.on_delta("reasoning", frag)
+                        emitted = True
+                    if delta.get("content"):
+                        self.on_delta("content", delta["content"])
+                        emitted = True
+        if emitted:
+            self.on_delta("end", "")
+        reply = normalize_reply(assemble_chunks(chunks))
+        reply["streamed"] = True
+        return reply

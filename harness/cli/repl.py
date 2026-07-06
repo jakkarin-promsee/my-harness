@@ -31,6 +31,7 @@ from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
 from harness.providers.openai_compat import OpenAICompatModel
 from harness.tools import basic
+from harness.tools.todo import make_todo_tool
 
 load_dotenv()
 
@@ -69,7 +70,7 @@ PROVIDERS = {
 }
 
 
-def make_model(cfg: dict):
+def make_model(cfg: dict, on_delta=None):
     max_tokens = cfg.get("max_tokens", 2000)
     if cfg["kind"] == "anthropic":
         if not cfg["key"]:
@@ -78,8 +79,10 @@ def make_model(cfg: dict):
                 "a stray key silently bills pay-as-you-go. Set it in .env only\n"
                 "when you deliberately want live Anthropic calls."
             )
+        # The insurance adapter doesn't stream (docs/notes/12-streaming.md).
         return AnthropicModel(cfg["key"], cfg["model"], max_tokens=max_tokens)
-    return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"], max_tokens=max_tokens)
+    return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"],
+                             max_tokens=max_tokens, on_delta=on_delta)
 
 
 # Thinking is rendered dim (ANSI SGR 2) so the inner voice reads as inner
@@ -91,6 +94,31 @@ DIM, RESET = "\033[2m", "\033[0m"
 
 def print_thinking(text: str) -> None:
     print(f"{DIM}  [thinking] {text}{RESET}")
+
+
+class StreamPrinter:
+    """Live deltas -> terminal (docs/notes/12-streaming.md): dim while the
+    model thinks, an `agent> ` line when it talks, newline when the stream
+    ends. One instance per REPL; state is just which voice is speaking."""
+
+    def __init__(self):
+        self.mode = None  # None | "reasoning" | "content"
+
+    def __call__(self, kind: str, text: str) -> None:
+        if kind == "end":
+            if self.mode == "reasoning":
+                print(RESET, end="")
+            if self.mode:
+                print(flush=True)
+            self.mode = None
+            return
+        if kind != self.mode:
+            if self.mode == "reasoning":
+                print(RESET, end="")
+            print(f"\n{DIM}  [thinking] " if kind == "reasoning" else "\nagent> ",
+                  end="")
+            self.mode = kind
+        print(text, end="", flush=True)
 
 # The system prompt is ASSEMBLED, not hardcoded — see core/context.py:
 # identity template + environment block + AGENTS.md project memory.
@@ -153,7 +181,11 @@ def main() -> None:
         session_id = store.new()
         messages = []
 
-    model = make_model(provider)
+    # Top-level agent streams (watch it think); the subagent below gets its
+    # own NON-streaming model so [sub]-prefixed lines never interleave with
+    # a half-printed delta stream.
+    model = make_model(provider, on_delta=StreamPrinter())
+    child_model = make_model(provider)
 
     # The token meter: non-negotiable from day 1 — this project exists
     # because of token economics. Watch prompt_tokens climb call after call.
@@ -179,7 +211,7 @@ def main() -> None:
     # The spawn tool closes over the LIVE messages list (rebound on /compact),
     # hence the lambda instead of the list itself.
     spawn_fn, spawn_schema = make_spawn_tool(
-        model=model,
+        model=child_model,
         registry=basic.REGISTRY,
         schemas=basic.SCHEMAS,
         needs_permission=set(basic.REGISTRY),  # child: gate decides via policy
@@ -189,8 +221,11 @@ def main() -> None:
         system_prompt=build_system_prompt(),
         on_usage=on_usage,
     )
-    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn)
-    schemas = basic.SCHEMAS + [spawn_schema]
+    # The todo list is top-level only: children never see its schema, so they
+    # never call it (docs/notes/13-todo-tool.md).
+    todo_fn, todo_schema = make_todo_tool(emit=print)
+    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn)
+    schemas = basic.SCHEMAS + [spawn_schema, todo_schema]
 
     agent = Agent(
         model=model,

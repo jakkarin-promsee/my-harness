@@ -79,7 +79,10 @@ class Agent:
             msg = reply["message"]
             if self.on_usage and reply.get("usage"):
                 self.on_usage(reply["usage"])
-            if reply.get("reasoning"):
+            # streamed replies were already watched live, delta by delta —
+            # re-printing them here would show everything twice.
+            streamed = reply.get("streamed", False)
+            if reply.get("reasoning") and not streamed:
                 # Shown to the human, absent from msg: the adapter already
                 # stripped it, so it costs zero context from here on.
                 self.emit_thinking(reply["reasoning"])
@@ -119,14 +122,15 @@ class Agent:
                         "content": "(Your previous reply was empty. Answer the request or call a tool.)",
                     })
                     continue
-                self.emit(f"\nagent> {content or '(no text)'}")
+                if not streamed:
+                    self.emit(f"\nagent> {content or '(no text)'}")
                 return
 
             # Preamble: text riding along WITH tool calls is the model
             # narrating before it acts ("let me read X first"). Claude Code
             # prints it; swallowing it was why turns felt like silent
             # tool->tool->tool (docs/notes/11-visible-mind.md).
-            if msg.get("content"):
+            if msg.get("content") and not streamed:
                 self.emit(f"\nagent> {msg['content']}")
 
             for call in tool_calls:
