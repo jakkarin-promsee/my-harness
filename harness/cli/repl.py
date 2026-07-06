@@ -22,6 +22,7 @@ truststore.inject_into_ssl()  # this machine has TLS interception (see labs/02)
 import requests
 from dotenv import load_dotenv
 
+from harness.core import budget
 from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
 from harness.core.session import SessionStore
@@ -40,17 +41,20 @@ PROVIDERS = {
         "url": "http://localhost:11434/v1/chat/completions",
         "key": "ollama",
         "model": os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
+        "context_window": 4096,  # Ollama's default num_ctx (see docs/problem.md)
     },
     "gemini": {
         "kind": "openai",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         "key": os.getenv("GEMINI_API_KEY", ""),
         "model": "gemini-2.5-flash-lite",
+        "context_window": 1_048_576,
     },
     "anthropic": {
         "kind": "anthropic",
         "key": os.getenv("ANTHROPIC_API_KEY", ""),
         "model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+        "context_window": 200_000,
     },
 }
 
@@ -151,6 +155,7 @@ def main() -> None:
         on_message=persist,
     )
 
+    window = provider.get("context_window", 0)
     print(f"researcher-harness | provider: {provider_name} | model: {provider['model']}")
     print(f"session: {session_id} | type a task, 'exit' to quit")
     if not messages:  # fresh session gets the system prompt as message zero
@@ -165,10 +170,37 @@ def main() -> None:
             break
         if not user:
             continue
+
+        # ---- slash commands (2.7 generalizes this to template commands) ----
+        if user == "/tokens":
+            print(budget.budget_line(budget.estimate_tokens(messages), window))
+            continue
+        if user == "/compact":
+            print("  compacting (this costs a model call - watch the meter)...")
+            try:
+                messages, usage = budget.compact(model, messages)
+            except requests.RequestException as e:
+                print(f"  [!] API error: {e}")
+                continue
+            if usage:
+                on_usage(usage)
+            # Old transcript stays intact on disk; compacted context lives on
+            # in a NEW session file (resuming the old id = full history back).
+            session_id = store.new()
+            for m in messages:
+                persist(m)
+            print(budget.budget_line(budget.estimate_tokens(messages), window))
+            print(f"  continued in session {session_id}")
+            continue
+        if user.startswith("/"):
+            print(f"  unknown command {user} (try /tokens or /compact)")
+            continue
+
         messages.append({"role": "user", "content": user})
         persist(messages[-1])
         try:
             agent.run_turn(messages)
         except requests.RequestException as e:
             print(f"  [!] API error: {e}")
+        print(budget.budget_line(budget.estimate_tokens(messages), window))
     print(f"\nsession total: {totals['in']:,} in / {totals['out']:,} out tokens")
