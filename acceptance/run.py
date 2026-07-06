@@ -24,6 +24,7 @@ from harness.core.loop import Agent  # noqa: E402
 from harness.core.permissions import load_policy  # noqa: E402
 from harness.core.subagent import make_spawn_tool  # noqa: E402
 from harness.tools import basic  # noqa: E402
+from harness.tools.todo import make_todo_tool  # noqa: E402
 
 
 def sh(command: str) -> subprocess.CompletedProcess:
@@ -155,11 +156,12 @@ def main() -> None:
             get_parent_messages=lambda m=messages: m,
             system_prompt=messages[0]["content"], on_usage=on_usage,
         )
+        todo_fn, todo_schema = make_todo_tool(emit=print)  # fresh list per task
         agent = Agent(
             model=model,
-            registry=dict(basic.REGISTRY, spawn_subagent=spawn_fn),
-            schemas=basic.SCHEMAS + [spawn_schema],
-            needs_permission=set(basic.REGISTRY) | {"spawn_subagent"},
+            registry=dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn),
+            schemas=basic.SCHEMAS + [spawn_schema, todo_schema],
+            needs_permission=set(basic.REGISTRY) | {"spawn_subagent", "todo_write"},
             approve=gate, on_usage=on_usage,
         )
         print(f"\n--- {task['id']} ---")

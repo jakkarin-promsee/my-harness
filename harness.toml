@@ -5,6 +5,6 @@
 # Precedence if a tool is listed twice: deny > ask > allow.
 # -y auto-approves "ask" tools but can NEVER override a deny.
 default = "ask"
-allow = ["read_file", "list_dir", "grep", "glob"]
+allow = ["read_file", "list_dir", "grep", "glob", "todo_write"]
 ask = ["write_file", "edit_file", "run_shell", "spawn_subagent"]
 deny = []
