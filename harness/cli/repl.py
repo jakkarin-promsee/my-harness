@@ -22,7 +22,7 @@ truststore.inject_into_ssl()  # this machine has TLS interception (see labs/02)
 import requests
 from dotenv import load_dotenv
 
-from harness.core import budget
+from harness.core import budget, commands
 from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
 from harness.core.session import SessionStore
@@ -190,7 +190,11 @@ def main() -> None:
         if not user:
             continue
 
-        # ---- slash commands (2.7 generalizes this to template commands) ----
+        # ---- slash commands: builtins first, then template commands ----
+        if user == "/help":
+            templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
+            print("  builtins: /tokens /compact /help | templates (commands/*.md): " + templates)
+            continue
         if user == "/tokens":
             print(budget.budget_line(budget.estimate_tokens(messages), window))
             continue
@@ -212,8 +216,11 @@ def main() -> None:
             print(f"  continued in session {session_id}")
             continue
         if user.startswith("/"):
-            print(f"  unknown command {user} (try /tokens or /compact)")
-            continue
+            expanded = commands.expand(user, commands.discover())
+            if expanded is None:
+                print(f"  unknown command {user} (try /help)")
+                continue
+            user = expanded  # the rendered template becomes the user message
 
         messages.append({"role": "user", "content": user})
         persist(messages[-1])
