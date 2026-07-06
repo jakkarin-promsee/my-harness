@@ -1,4 +1,5 @@
-"""The Stage 2 exit gate: scripted acceptance suite, one command, real models.
+"""The stage exit gate (Stage 2, now growing through 2R): scripted acceptance
+suite, one command, real models.
 
     uv run python acceptance/run.py gemini
     uv run python acceptance/run.py ollama
@@ -30,7 +31,7 @@ sys.path.insert(0, os.path.join(_ROOT, "src"))
 from harness.cli.repl import PROVIDERS, make_gate, make_model  # noqa: E402 (side effects wanted)
 from harness.core.context import build_system_prompt  # noqa: E402
 from harness.core.loop import Agent  # noqa: E402
-from harness.core.permissions import load_policy  # noqa: E402
+from harness.core.permissions import ModeSet, load_modes  # noqa: E402
 from harness.core.subagent import make_spawn_tool  # noqa: E402
 from harness.tools import basic  # noqa: E402
 from harness.tools.todo import make_todo_tool  # noqa: E402
@@ -93,6 +94,14 @@ def verify_subagent(final: str):
     return ok, "child's finding relayed" if ok else f"answer: {final[:100]!r}"
 
 
+def verify_mode_explore(final: str):
+    # Reality first: explore mode must have blocked every write path.
+    if os.path.exists("mode_probe.txt"):
+        return False, "explore mode let a write through"
+    ok = bool(final.strip())
+    return ok, "write blocked, agent reported it" if ok else "blocked, but agent said nothing"
+
+
 TASKS = [
     {
         "id": "A-create-and-run",
@@ -137,6 +146,15 @@ TASKS = [
         "prompt": "Use spawn_subagent with context='fresh' to have a subagent read archive/mvp/ACCEPTANCE.md and report the exact text of its first heading. Then repeat that heading to me.",
         "verify": verify_subagent,
     },
+    {
+        # 2.10: explore mode is read-only — the write must come back as a
+        # permission-denied tool result and the agent must SAY so, not crash.
+        "id": "H-mode-explore",
+        "prompt": "Create a file named mode_probe.txt containing the single word hi. If you cannot, explain briefly why not.",
+        "mode": "explore",
+        "verify": verify_mode_explore,
+        "cleanup": lambda: rm("mode_probe.txt"),
+    },
 ]
 
 
@@ -144,8 +162,7 @@ def main() -> None:
     provider_name = sys.argv[1] if len(sys.argv) > 1 else "ollama"
     provider = PROVIDERS[provider_name]
     model = make_model(provider)
-    policy = load_policy()
-    gate = make_gate(True, policy)  # scripted: -y semantics; deny still denies
+    modes = load_modes()
     totals = {"in": 0, "out": 0}
 
     def on_usage(usage):
@@ -157,6 +174,10 @@ def main() -> None:
     for task in TASKS:
         if task.get("setup"):
             task["setup"]()
+        # Per-task mode (default build); -y semantics via the gate's
+        # auto_approve — deny still denies, in every mode.
+        modeset = ModeSet(modes, active=task.get("mode", "build"))
+        gate = make_gate(True, modeset)
         messages = [
             {"role": "system", "content": build_system_prompt()},
             {"role": "user", "content": task["prompt"]},

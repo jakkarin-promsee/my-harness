@@ -8,6 +8,7 @@ Run:
     uv run python -m harness             # local Ollama (free)
     uv run python -m harness gemini      # Gemini flash-lite (uses $ credit)
     uv run python -m harness -y          # auto-approve gate (scripted runs)
+    uv run python -m harness --mode explore   # read-only profile (note 16)
 """
 
 import argparse
@@ -30,7 +31,7 @@ from dotenv import load_dotenv
 from harness.core import budget, commands
 from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
-from harness.core.permissions import load_policy
+from harness.core.permissions import ModeSet, load_modes
 from harness.core.session import SessionStore
 from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
@@ -129,15 +130,17 @@ class StreamPrinter:
 # identity template + environment block + AGENTS.md project memory.
 
 
-def make_gate(auto_approve: bool, policy):
-    """The permission gate, policy-aware (docs/notes/10-permissions-v2.md):
+def make_gate(auto_approve: bool, modeset: ModeSet):
+    """The permission gate, mode-aware (docs/notes/10 + 16):
     deny -> refuse flatly (-y can NEVER override it);
-    allow -> run silently; ask -> y/N prompt (-y upgrades to yes)."""
+    allow -> run silently (writes: only inside cwd — decide_call's scoping
+    rule); ask -> y/N prompt (-y upgrades to yes). Reads the ACTIVE mode's
+    policy per call, so /mode switches apply mid-session."""
 
     def approve(name: str, arguments: dict) -> bool:
-        decision = policy.decide(name)
+        decision = modeset.policy.decide_call(name, arguments)
         if decision == "deny":
-            print(f"  [policy] {name} is denied by harness.toml")
+            print(f"  [policy] {name} is denied in mode '{modeset.active}'")
             return False
         if decision == "allow" or auto_approve:
             return True
@@ -157,6 +160,10 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="harness")
     parser.add_argument("provider", nargs="?", default="ollama", choices=PROVIDERS)
     parser.add_argument("-y", "--yes", action="store_true", help="auto-approve the permission gate")
+    parser.add_argument(
+        "--mode", default="build", metavar="NAME",
+        help="permission mode to start in (chat/explore/build/auto; see harness.toml)",
+    )
     parser.add_argument(
         "--resume", nargs="?", const="latest", default=None, metavar="ID",
         help="continue a saved session (latest if no ID given)",
@@ -210,8 +217,11 @@ def main() -> None:
     def persist(message: dict) -> None:
         store.append(session_id, message)
 
-    policy = load_policy()
-    gate = make_gate(auto_approve, policy)
+    modes = load_modes()
+    if args.mode not in modes:
+        sys.exit(f"unknown mode {args.mode!r} - available: {', '.join(sorted(modes))}")
+    modeset = ModeSet(modes, active=args.mode)
+    gate = make_gate(auto_approve, modeset)
 
     # The spawn tool closes over the LIVE messages list (rebound on /compact),
     # hence the lambda instead of the list itself.
@@ -235,9 +245,11 @@ def main() -> None:
     agent = Agent(
         model=model,
         registry=registry,
-        schemas=schemas,
-        # Every tool goes through the gate; the POLICY decides who runs
-        # silently (allow), who prompts (ask), who never runs (deny).
+        # chat mode doesn't even offer the tools array (note 16); every other
+        # mode advertises everything and lets the policy sort it out.
+        schemas=schemas if modeset.send_tools else [],
+        # Every tool goes through the gate; the ACTIVE MODE's policy decides
+        # who runs silently (allow), who prompts (ask), who never runs (deny).
         needs_permission=set(registry),
         approve=gate,
         emit_thinking=print_thinking,
@@ -246,7 +258,8 @@ def main() -> None:
     )
 
     window = provider.get("context_window", 0)
-    print(f"researcher-harness | provider: {provider_name} | model: {provider['model']}")
+    print(f"researcher-harness | provider: {provider_name} | model: {provider['model']}"
+          f" | mode: {modeset.active}")
     print(f"session: {session_id} | type a task, 'exit' to quit")
     if not messages:  # fresh session gets the system prompt as message zero
         messages = [{"role": "system", "content": build_system_prompt()}]
@@ -264,7 +277,22 @@ def main() -> None:
         # ---- slash commands: builtins first, then template commands ----
         if user == "/help":
             templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
-            print("  builtins: /tokens /compact /help | templates (commands/*.md): " + templates)
+            print("  builtins: /tokens /compact /mode /help | templates (commands/*.md): " + templates)
+            continue
+        if user == "/mode" or user.startswith("/mode "):
+            name = user.removeprefix("/mode").strip()
+            if not name:
+                print(f"  mode: {modeset.active} | available: {', '.join(sorted(modeset.modes))}")
+                continue
+            try:
+                modeset.switch(name)
+            except ValueError as e:
+                print(f"  {e}")
+                continue
+            # The gate reads the active policy per call; only the tools array
+            # needs rewiring (chat offers none).
+            agent.schemas = schemas if modeset.send_tools else []
+            print(f"  mode: {modeset.active}")
             continue
         if user == "/tokens":
             print(budget.budget_line(budget.estimate_tokens(messages), window))

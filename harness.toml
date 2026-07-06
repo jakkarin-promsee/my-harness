@@ -4,7 +4,30 @@
 # allow = run silently | ask = y/N confirmation | deny = refuse flatly.
 # Precedence if a tool is listed twice: deny > ask > allow.
 # -y auto-approves "ask" tools but can NEVER override a deny.
+# This table IS the `build` mode (docs/notes/16-permission-modes.md).
 default = "ask"
 allow = ["read_file", "list_dir", "grep", "glob", "todo_write"]
 ask = ["write_file", "edit_file", "run_shell", "spawn_subagent"]
+deny = []
+
+# Modes = named profiles over the same three-state policy. Switch with
+# `/mode <name>` or `--mode <name>`. Two laws hold in EVERY mode: deny is
+# absolute, and an allow on write_file/edit_file only counts inside cwd.
+
+[modes.chat]
+# "ask only, like the websites" — the tools array isn't even sent.
+tools = false
+default = "deny"
+
+[modes.explore]
+# "can see, can't touch" — reads run silently, everything else refused.
+default = "deny"
+allow = ["read_file", "list_dir", "grep", "glob", "todo_write"]
+
+[modes.auto]
+# "coding" — writes/edits auto-approved inside cwd (outside: ask);
+# shell and subagents still confirm unless run with -y.
+default = "ask"
+allow = ["read_file", "list_dir", "grep", "glob", "todo_write", "write_file", "edit_file"]
+ask = ["run_shell", "spawn_subagent"]
 deny = []

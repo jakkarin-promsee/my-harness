@@ -6,7 +6,7 @@ The heart of the harness plus the bookkeeping that keeps it alive. Each module's
 |---|---|---|
 | `loop.py` | **The agent loop.** One model call → run the tool calls → append results → repeat. Pure and injected (no HTTP, no I/O it wasn't handed). Handles the empty-reply and cut-off (`length`) nudges. | 00, 11 |
 | `context.py` | Assembles the first (system) message: `prompts/system.md` + an env block + `AGENTS.md` from the cwd. | 06, 07 |
-| `permissions.py` | Three-state policy (allow / ask / deny) from `harness.toml`. Fail-closed: deny > ask > allow; `-y` upgrades *ask* only, never deny. | 10 |
+| `permissions.py` | Three-state policy (allow / ask / deny) from `harness.toml` + named **modes** (chat / explore / build / auto) switchable at runtime. Fail-closed: deny > ask > allow; `-y` upgrades *ask* only, never deny; an allow on `write_file`/`edit_file` counts inside cwd only. | 10, 16 |
 | `session.py` | One JSONL file per session, one line per message the moment it exists. Resume = replay the lines. | 05 |
 | `budget.py` | Token estimate + the standard `/compact` (summarize-and-replace). Built as the baseline Stage 3.1's surgical ops must measurably beat. | ROADMAP 3.1 |
 | `commands.py` | Slash commands = markdown files: `/name args` → `commands/name.md` with `{{args}}` substituted. | 09 |

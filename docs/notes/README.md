@@ -22,3 +22,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [13-todo-tool](13-todo-tool.md) | 2.9c: the external plan the model can't forget |
 | [14-src-layout](14-src-layout.md) | The restructure: installable package under `src/`, `docs/` + `archive/` split |
 | [15-context-hierarchy](15-context-hierarchy.md) | One fact, one home — the five doc layers and the two audiences |
+| [16-permission-modes](16-permission-modes.md) | 2.10: chat/explore/build/auto profiles; the cwd scoping rule; `/mode` |
