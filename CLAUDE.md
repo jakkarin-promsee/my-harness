@@ -1,5 +1,7 @@
 # CLAUDE.md — researcher-harness
 
+> This file is a **map**, not a container (note 15). It holds pointers, status, and rules — not implementation detail. The *why* lives in `docs/notes/`; the *what's-in-each-folder* in that folder's `README.md`; the *how-this-works* in each module's docstring. One fact, one home.
+
 ## What this project is
 
 A **from-scratch agent harness**, built to learn how harnesses (Claude Code, Codex CLI, opencode, aider, ...) actually work under the hood — and to own an independent one if the day ever comes when Claude isn't available here ("claude2 insurance"). Learning-first side project: **understanding beats features, every time.**
@@ -14,7 +16,8 @@ Read [docs/ROADMAP.md](docs/ROADMAP.md) before doing anything. It holds the full
 
 ## Current status
 
-- **Repo restructured 2026-07-07:** code is now an installable package under `src/harness/`, prose docs under `docs/`, and the frozen/experimental dirs (`labs/`, `mvp/`, `prompt/`) under `archive/`. Runtime/config files (`harness.toml`, `AGENTS.md`, `commands/`, `README.md`, `CLAUDE.md`) stay at root. Entry point: `uv run harness <provider>` or `uv run python -m harness <provider>`.
+- **Repo restructured 2026-07-07:** code is an installable package under `src/harness/`, prose docs under `docs/`, and the frozen/experimental dirs (`labs/`, `mvp/`, `prompt/`) under `archive/`. Runtime/config files (`harness.toml`, `AGENTS.md`, `commands/`, `README.md`, `CLAUDE.md`) stay at root. Entry point: `uv run harness <provider>` or `uv run python -m harness <provider>`.
+- **Context hierarchy added 2026-07-07 (note 15):** `CLAUDE.md` files are maps; folder `README.md`s are the containers; `docs/notes/` are the why; `.claude/skills/` are how-to-task procedures. See the router below.
 - **Stage: 2 COMPLETE (2026-07-07) — exit gate 7/7 on BOTH providers; Stage 3 unblocked.** 79 offline tests (`uv run pytest -q`); exit gate `uv run python acceptance/run.py <provider>`: **7/7 gemini-2.5-flash-lite** (1,083 out-tokens), **7/7 local qwen3:4b-instruct** (1,460 out-tokens). 2.9 shipped 2026-07-07: visible mind (narration preambles + dim thinking display + length-nudge), SSE streaming, todo tool (notes 11–13). Local workhorse: `qwen3:4b-instruct` (non-thinking 2507 refresh, set in `.env`) with `OLLAMA_CONTEXT_LENGTH=8192` machine-wide. Model lessons: `llama3.2:3b` fabricates — unusable; thinking `qwen3:4b` burns 10× the output tokens and dies at length limits — use the instruct variant; never `temperature: 0` on qwen3; flash-lite throws 503s (retry handles) and empty replies (nudge handles). [docs/problem.md](docs/problem.md): only the deliberate Anthropic live test remains open.
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
@@ -37,18 +40,35 @@ Layout: **code** under `src/`, **docs** under `docs/`, **frozen/experimental** u
 | Path | What it is |
 |---|---|
 | `docs/ROADMAP.md` | The plan. Stages 0–3, exit criteria, reference shelf |
-| `docs/notes/` | Design notes — one per feature, written *before* implementing (created in Stage 0) |
+| `docs/notes/` | Design notes — one per feature, written *before* implementing. The **why** |
 | `docs/problem.md` | Open problems needing the owner — check when returning to the project |
 | `docs/harness-context-v3.md` | Legacy brief (see below) |
-| `src/harness/` | **The living codebase** (Stage 2+): `core/` loop, `providers/`, `tools/`, `cli/`, `prompts/`. Installable package. Run: `uv run harness [ollama\|gemini\|anthropic] [-y] [--resume] [--sessions]` (or `uv run python -m harness ...`) |
-| `tests/` | FakeModel pytest suite — the loop's contract, zero tokens. Run: `uv run pytest -q` |
-| `acceptance/` | Stage-2 exit gate: live-model suite. Run: `uv run python acceptance/run.py <provider>` |
-| `commands/` | Slash-command template library (`/name args` reads `commands/name.md`) — read from cwd at runtime, so it stays at root |
+| `src/harness/` | **The living codebase.** `core/` loop, `providers/`, `tools/`, `cli/`, `prompts/`. Its `CLAUDE.md` is the code map (auto-loaded when editing under `src/`); each subpackage has a `README.md` — the local, file-by-file map |
+| `tests/` | FakeModel pytest suite — the loop's contract, zero tokens (see `tests/README.md`). Run: `uv run pytest -q` |
+| `acceptance/` | Stage-2 exit gate: live-model suite (see `acceptance/README.md`). Run: `uv run python acceptance/run.py <provider>` |
+| `.claude/skills/` | Task procedures for **coding agents**: `explore`, `implement-feature`, `run-tests`. (Distinct from `commands/`, which is the harness's own runtime feature.) |
+| `commands/` | The harness's runtime slash-command library (`/name args` → `commands/name.md`) — read from cwd by the harness, **not** dev context. See `commands/README.md` |
 | `harness.toml` | Permissions policy (allow/ask/deny per tool), versioned on purpose — read from cwd at runtime |
-| `AGENTS.md` | Project memory injected into the harness's own system prompt — read from cwd at runtime |
-| `archive/mvp/` | Stage 1 single-file harness — **frozen** as the learning artifact; `archive/mvp/ACCEPTANCE.md` + fixtures still serve as the acceptance suite |
-| `archive/labs/` | Tiny throwaway experiments (raw API calls, wire-format studies) (created in Stage 0) |
-| `archive/prompt/` | The owner's **real prompt library** from the research project. Read-only reference — do not edit. Raw material for Stage 3.2 (prompt middleware) |
+| `AGENTS.md` | Project memory injected into the harness's **own** system prompt — read from cwd at runtime |
+| `archive/mvp/` | Stage 1 single-file harness — **frozen** as the learning artifact; `archive/mvp/ACCEPTANCE.md` + fixtures still serve acceptance |
+| `archive/labs/` | Tiny throwaway experiments (raw API calls, wire-format studies) |
+| `archive/prompt/` | The owner's **real prompt library** from the research project. Read-only reference — raw material for Stage 3.2 (prompt middleware) |
+
+## Where to read (the router)
+
+Don't load the whole repo. To work on one area, open only its column:
+
+| If you're… | Open |
+|---|---|
+| new here | this file → [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/notes/00-anatomy.md](docs/notes/00-anatomy.md) |
+| touching any code | `src/harness/CLAUDE.md` (auto-loads) → the folder's `README.md` |
+| changing the loop | `src/harness/core/README.md` + note 00 + `loop.py`'s docstring |
+| adding/altering a provider | `src/harness/providers/README.md` + note 03 |
+| adding/altering a tool | `src/harness/tools/README.md` + notes 04 & 13 |
+| changing permissions / sessions / compaction | `src/harness/core/README.md` + notes 10 / 05 / (ROADMAP 3.1) |
+| running or reading tests | `tests/README.md`, `acceptance/README.md` |
+| doing a feature end-to-end | skill: **implement-feature** |
+| understanding before you change | skill: **explore** |
 
 ## Working rules (the constitution)
 
@@ -65,6 +85,7 @@ Layout: **code** under `src/`, **docs** under `docs/`, **frozen/experimental** u
 - English for all project docs.
 - Reports use a storytelling tone: what was the problem → what did we do → why → what happened.
 - Prose + tables over ASCII-art diagrams. Short pseudocode blocks are fine.
+- **Context hierarchy (note 15):** `CLAUDE.md` = map, `README.md` = what's-in-this-folder, `docs/notes/` = why, `.claude/skills/` = how-to-task. One fact, one home — cross-link, never copy. When you add or remove a file in a folder, update that folder's `README.md`.
 
 ## Legacy context
 

@@ -1,0 +1,15 @@
+# src/harness/core — the loop and its survival layers
+
+The heart of the harness plus the bookkeeping that keeps it alive. Each module's **top docstring is its spec** — read that first; this README is the map, and `docs/notes/` holds the why.
+
+| File | What it does | Why (note) |
+|---|---|---|
+| `loop.py` | **The agent loop.** One model call → run the tool calls → append results → repeat. Pure and injected (no HTTP, no I/O it wasn't handed). Handles the empty-reply and cut-off (`length`) nudges. | 00, 11 |
+| `context.py` | Assembles the first (system) message: `prompts/system.md` + an env block + `AGENTS.md` from the cwd. | 06, 07 |
+| `permissions.py` | Three-state policy (allow / ask / deny) from `harness.toml`. Fail-closed: deny > ask > allow; `-y` upgrades *ask* only, never deny. | 10 |
+| `session.py` | One JSONL file per session, one line per message the moment it exists. Resume = replay the lines. | 05 |
+| `budget.py` | Token estimate + the standard `/compact` (summarize-and-replace). Built as the baseline Stage 3.1's surgical ops must measurably beat. | ROADMAP 3.1 |
+| `commands.py` | Slash commands = markdown files: `/name args` → `commands/name.md` with `{{args}}` substituted. | 09 |
+| `subagent.py` | Spawn a child loop (`fresh` clean slate \| `fork` copy of parent). Only the child's **final text** returns to the parent — its transcript never enters the parent window. | 08 |
+
+**Changing the loop?** It's the boring core — keep it pure and injected, and drive every path from `tests/test_loop.py` (zero tokens). The invariants you must not break are in [`../CLAUDE.md`](../CLAUDE.md).
