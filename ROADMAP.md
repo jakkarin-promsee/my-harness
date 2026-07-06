@@ -55,12 +55,12 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
   2. [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent) — read `src/minisweagent/agents/default.py` end to end (~100 lines; note: it uses *only bash*, no tool-calling API — a deliberate design choice worth understanding)
   3. Anthropic — [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
   4. Anthropic — [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) (this one is basically Pain 1 written by the seniors)
-- [ ] **0.2 Environment setup:** install `uv`, init the Python project; install Ollama; pull 2–3 small tool-calling candidates (`qwen3:4b`, small Gemma) and test which one reliably emits tool calls on 4 GB VRAM; put the Gemini key in `.env` (never commit it).
-- [ ] **0.3 Wire-format lab** (in `labs/`):
+- [x] **0.2 Environment setup:** *(done 2026-07-06)* uv 0.11.18 + project init; Ollama 0.31.1 installed; pulled `llama3.2:3b` (fast, clean output) and `qwen3:4b` (smarter, emits a visible `reasoning` field) — **both** emit correct tool calls on the 4 GB GPU. Machine quirk: local TLS interception → `system-certs = true` in pyproject for uv, `truststore` for Python HTTPS. Still open: owner pastes Gemini key into `.env` (never commit it).
+- [x] **0.3 Wire-format lab** (in `labs/`): *(built + run 2026-07-06 on `llama3.2:3b`; Gemini leg of 02 pending the API key in `.env`)*
   - `00_raw_call.py` — one raw HTTP POST to Ollama's `/v1/chat/completions`, print the JSON. No SDK. See the actual shape of a request/response.
   - `01_tool_roundtrip.py` — send a `tools` array, get `tool_calls` back, execute by hand, send the `role:"tool"` result message, get the final answer. **One full round trip, no loop.** This 50-line file demystifies 80% of the project.
   - `02_provider_swap.py` — same call, `base_url` flipped to Gemini's OpenAI-compatible endpoint. Proof that provider-portability is nearly free at this layer.
-- [ ] **0.4 Write `docs/notes/00-anatomy.md`** in your own words: the six organs of a harness — provider client, message list (context), tool registry + executor, the loop, system prompt, UI/REPL — and what each reference does about each.
+- [x] **0.4 Write `docs/notes/00-anatomy.md`** *(written; owner must still pass the exit exam at its bottom)* in your own words: the six organs of a harness — provider client, message list (context), tool registry + executor, the loop, system prompt, UI/REPL — and what each reference does about each.
 
 **Exit criteria:** the tool round-trip lab works against both providers; the anatomy note exists; you can explain every JSON field in the round trip.
 
@@ -167,7 +167,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 
 | Stage | Status | Started | Finished |
 |---|---|---|---|
-| 0 — Recon | not started | — | — |
+| 0 — Recon | in progress (labs done; owner's reading + exam left) | 2026-07-06 | — |
 | 1 — MVP | not started | — | — |
 | 2 — Copy the seniors | not started | — | — |
 | 3 — Make it mine | not started | — | — |

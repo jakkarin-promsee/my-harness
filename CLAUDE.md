@@ -14,7 +14,7 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 
 ## Current status
 
-- **Stage: 0 (Recon) — not started.**
+- **Stage: 0 (Recon) — in progress (2026-07-06).** Environment + labs done and passing on local `llama3.2:3b`. Remaining: owner reads the canon (0.1), passes the anatomy exit exam (0.4), pastes Gemini key into `.env` for lab 02's paid leg.
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
 ## Stack & environment
