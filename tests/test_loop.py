@@ -122,6 +122,24 @@ def test_huge_tool_output_keeps_head_and_tail():
     assert len(content) < 200
 
 
+def test_empty_reply_gets_one_nudge_then_recovery():
+    model = FakeModel([text_reply(""), text_reply("recovered")])
+    messages = [{"role": "user", "content": "hi"}]
+    make_agent(model).run_turn(messages)
+    assert len(model.calls) == 2                       # nudge triggered a retry
+    roles = [m["role"] for m in messages]
+    assert roles == ["user", "assistant", "user", "assistant"]
+    assert "empty" in messages[2]["content"]           # the nudge message
+    assert messages[3]["content"] == "recovered"
+
+
+def test_two_empty_replies_end_the_turn_without_looping():
+    model = FakeModel([text_reply(""), text_reply("")])
+    messages = [{"role": "user", "content": "hi"}]
+    make_agent(model).run_turn(messages)
+    assert len(model.calls) == 2                       # exactly one nudge, no spiral
+
+
 def test_usage_reaches_the_meter_hook():
     reply = text_reply("hi")
     reply["usage"] = {"prompt_tokens": 7, "completion_tokens": 3}

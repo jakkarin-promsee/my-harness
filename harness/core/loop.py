@@ -52,6 +52,7 @@ class Agent:
 
     def run_turn(self, messages: list) -> None:
         """One user request -> the model chains tool calls -> final text."""
+        nudged = False
         for _ in range(self.max_steps):
             reply = self.model.complete(messages, self.schemas)
             msg = reply["message"]
@@ -69,7 +70,19 @@ class Agent:
             # some Ollama models say "stop" while still carrying tool calls.
             tool_calls = msg.get("tool_calls") or []
             if not tool_calls:
-                self.emit(f"\nagent> {msg.get('content') or '(no text)'}")
+                content = msg.get("content")
+                if not content and not nudged:
+                    # Fully empty reply (no text, no tool calls) — measured
+                    # live on gemini flash-lite right after a tool result.
+                    # One nudge, then accept whatever comes back.
+                    nudged = True
+                    self.emit("  [!] empty reply - nudging once...")
+                    self._append(messages, {
+                        "role": "user",
+                        "content": "(Your previous reply was empty. Answer the request or call a tool.)",
+                    })
+                    continue
+                self.emit(f"\nagent> {content or '(no text)'}")
                 return
 
             for call in tool_calls:
