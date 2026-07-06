@@ -50,17 +50,17 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
 
 **Goal:** be able to explain, in your own words, why a harness is "a while-loop around a chat API with function calling" — and have touched the raw wire format with your own hands.
 
-- [ ] **0.1 Read the short canon** (order matters):
+- [x] **0.1 Read the short canon** *(owner confirmed 2026-07-06)* (order matters):
   1. Thorsten Ball — [How to Build an Agent](https://ampcode.com/notes/how-to-build-an-agent) (~1 hour; a working code-editing agent in ~315 lines, line by line)
   2. [mini-swe-agent](https://github.com/SWE-agent/mini-swe-agent) — read `src/minisweagent/agents/default.py` end to end (~100 lines; note: it uses *only bash*, no tool-calling API — a deliberate design choice worth understanding)
   3. Anthropic — [Building Effective Agents](https://www.anthropic.com/engineering/building-effective-agents)
   4. Anthropic — [Effective Context Engineering for AI Agents](https://www.anthropic.com/engineering/effective-context-engineering-for-ai-agents) (this one is basically Pain 1 written by the seniors)
-- [x] **0.2 Environment setup:** *(done 2026-07-06)* uv 0.11.18 + project init; Ollama 0.31.1 installed; pulled `llama3.2:3b` (fast, clean output) and `qwen3:4b` (smarter, emits a visible `reasoning` field) — **both** emit correct tool calls on the 4 GB GPU. Machine quirk: local TLS interception → `system-certs = true` in pyproject for uv, `truststore` for Python HTTPS. Still open: owner pastes Gemini key into `.env` (never commit it).
-- [x] **0.3 Wire-format lab** (in `labs/`): *(built + run 2026-07-06 on `llama3.2:3b`; Gemini leg of 02 pending the API key in `.env`)*
+- [x] **0.2 Environment setup:** *(done 2026-07-06)* uv 0.11.18 + project init; Ollama 0.31.1 installed; pulled `llama3.2:3b` (fast, clean output) and `qwen3:4b` (smarter, emits a visible `reasoning` field) — **both** emit correct tool calls on the 4 GB GPU. Machine quirk: local TLS interception → `system-certs = true` in pyproject for uv, `truststore` for Python HTTPS. Gemini key in `.env` since 2026-07-06 (never commit it).
+- [x] **0.3 Wire-format lab** (in `labs/`): *(built + run 2026-07-06 on `llama3.2:3b`; Gemini leg of 02 verified by the owner with his AI Studio key — same code, three strings changed)*
   - `00_raw_call.py` — one raw HTTP POST to Ollama's `/v1/chat/completions`, print the JSON. No SDK. See the actual shape of a request/response.
   - `01_tool_roundtrip.py` — send a `tools` array, get `tool_calls` back, execute by hand, send the `role:"tool"` result message, get the final answer. **One full round trip, no loop.** This 50-line file demystifies 80% of the project.
   - `02_provider_swap.py` — same call, `base_url` flipped to Gemini's OpenAI-compatible endpoint. Proof that provider-portability is nearly free at this layer.
-- [x] **0.4 Write `docs/notes/00-anatomy.md`** *(written; owner must still pass the exit exam at its bottom)* in your own words: the six organs of a harness — provider client, message list (context), tool registry + executor, the loop, system prompt, UI/REPL — and what each reference does about each.
+- [x] **0.4 Write `docs/notes/00-anatomy.md`** *(written; owner fast-tracked the formal exam 2026-07-06 — to be spot-checked live during Stage 1 code walkthroughs)* in your own words: the six organs of a harness — provider client, message list (context), tool registry + executor, the loop, system prompt, UI/REPL — and what each reference does about each.
 
 **Exit criteria:** the tool round-trip lab works against both providers; the anatomy note exists; you can explain every JSON field in the round trip.
 
@@ -70,12 +70,12 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
 
 **Goal:** a single-file REPL agent, `mvp/harness.py`, under ~300 lines, that completes a real (tiny) task on this machine. Copy the structure of Ball's tutorial and mini-swe-agent shamelessly.
 
-- [ ] **1.1 Chat REPL:** while-loop, message list, one model call per turn, streaming print.
-- [ ] **1.2 Four tools only:** `read_file`, `write_file`, `list_dir`, `run_shell`. JSON-schema definitions + a dispatch table. No more tools — resist.
-- [ ] **1.3 The agent loop:** model returns `tool_calls` → execute → append results → call again; plain text ends the turn.
-- [ ] **1.4 Permission gate:** y/n confirmation printed before every `write_file` and `run_shell`. (First taste of the permission layer every serious harness has.)
-- [ ] **1.5 Token meter:** after every model call, print per-turn and running token usage from the API response. Non-negotiable — this project exists because of token economics, so we measure from day 1.
-- [ ] **1.6 Acceptance tasks** (write them down in `mvp/ACCEPTANCE.md`):
+- [x] **1.1 Chat REPL:** while-loop, message list, one model call per turn. *(Streaming print dropped from Stage 1 — SSE + delta-assembled tool calls triple the parsing code and teach nothing about the loop; moved to 2.9. See docs/notes/01-mvp.md.)*
+- [x] **1.2 Four tools only:** `read_file`, `write_file`, `list_dir`, `run_shell`. JSON-schema definitions + a dispatch table. No more tools — resist.
+- [x] **1.3 The agent loop:** model returns `tool_calls` → execute → append results → call again; plain text ends the turn. *(Plus two runaway guards earned in battle: `MAX_STEPS` for the loop, `max_tokens` for one generation, and a single retry on 5xx.)*
+- [x] **1.4 Permission gate:** y/n confirmation printed before every `write_file` and `run_shell`; `-y` auto-approves for scripted runs. (First taste of the permission layer every serious harness has.)
+- [x] **1.5 Token meter:** after every model call, print per-turn and running token usage from the API response. Non-negotiable — this project exists because of token economics, so we measure from day 1.
+- [x] **1.6 Acceptance tasks** *(all three PASS on `gemini-2.5-flash-lite`, B also on `qwen3:4b` — full log in `mvp/ACCEPTANCE.md`)* (write them down in `mvp/ACCEPTANCE.md`):
   - A. "Create fizzbuzz.py and run it, show me the output."
   - B. "Read pyproject.toml and tell me what dependencies this project has."
   - C. A planted buggy file + failing test: "Find the bug, fix it, prove it with the test run."
@@ -167,8 +167,8 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 
 | Stage | Status | Started | Finished |
 |---|---|---|---|
-| 0 — Recon | in progress (labs done; owner's reading + exam left) | 2026-07-06 | — |
-| 1 — MVP | not started | — | — |
+| 0 — Recon | **done** — labs pass on Ollama + Gemini (owner-verified) | 2026-07-06 | 2026-07-06 |
+| 1 — MVP | in progress (code done, acceptance suite green on Gemini; owner's line-by-line walkthrough left) | 2026-07-06 | — |
 | 2 — Copy the seniors | not started | — | — |
 | 3 — Make it mine | not started | — | — |
 

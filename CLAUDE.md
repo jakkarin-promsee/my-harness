@@ -14,7 +14,7 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 
 ## Current status
 
-- **Stage: 0 (Recon) — in progress (2026-07-06).** Environment + labs done and passing on local `llama3.2:3b`. Remaining: owner reads the canon (0.1), passes the anatomy exit exam (0.4), pastes Gemini key into `.env` for lab 02's paid leg.
+- **Stage: 1 (MVP) — code done, acceptance green (2026-07-06).** `mvp/harness.py` (~260 lines) passes all three acceptance tasks on `gemini-2.5-flash-lite` (B also passes on local `qwen3:4b`). Model lessons: `llama3.2:3b` fabricates instead of reading — unusable; `qwen3:4b` must never get `temperature: 0` (infinite thinking loops). Remaining for Stage 1 exit: owner walks through the file line by line (rule 3), owner drives an interactive session himself.
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
 ## Stack & environment
