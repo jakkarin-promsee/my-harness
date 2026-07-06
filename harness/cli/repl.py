@@ -22,25 +22,46 @@ import requests
 from dotenv import load_dotenv
 
 from harness.core.loop import Agent
+from harness.providers.anthropic import AnthropicModel
 from harness.providers.openai_compat import OpenAICompatModel
 from harness.tools import basic
 
 load_dotenv()
 
-# Same three-string swap as labs/02: url + key + model IS the provider layer
-# at this stage. Stage 2.1 grows this into a real adapter registry.
+# The provider registry. Two adapters cover everything we can reach:
+# "openai" (Ollama, Gemini, OpenRouter, vLLM — one wire format) and
+# "anthropic" (its own dialect; see providers/anthropic.py).
 PROVIDERS = {
     "ollama": {
+        "kind": "openai",
         "url": "http://localhost:11434/v1/chat/completions",
         "key": "ollama",
         "model": os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
     },
     "gemini": {
+        "kind": "openai",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
         "key": os.getenv("GEMINI_API_KEY", ""),
         "model": "gemini-2.5-flash-lite",
     },
+    "anthropic": {
+        "kind": "anthropic",
+        "key": os.getenv("ANTHROPIC_API_KEY", ""),
+        "model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
+    },
 }
+
+
+def make_model(cfg: dict):
+    if cfg["kind"] == "anthropic":
+        if not cfg["key"]:
+            sys.exit(
+                "No ANTHROPIC_API_KEY set. That's intentional (see CLAUDE.md):\n"
+                "a stray key silently bills pay-as-you-go. Set it in .env only\n"
+                "when you deliberately want live Anthropic calls."
+            )
+        return AnthropicModel(cfg["key"], cfg["model"])
+    return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"])
 
 SYSTEM_PROMPT = f"""You are a coding agent running in a terminal on Windows.
 Working directory: {os.getcwd()}
@@ -75,7 +96,7 @@ def main() -> None:
     provider_name = next((a for a in args if not a.startswith("-")), "ollama")
     provider = PROVIDERS[provider_name]
 
-    model = OpenAICompatModel(provider["url"], provider["key"], provider["model"])
+    model = make_model(provider)
 
     # The token meter: non-negotiable from day 1 — this project exists
     # because of token economics. Watch prompt_tokens climb call after call.
