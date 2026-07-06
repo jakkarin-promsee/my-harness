@@ -10,37 +10,7 @@ makes working rule 5 ("the harness must be boring") enforceable.
 import pytest
 
 from harness.core.loop import Agent
-
-
-class FakeModel:
-    """Returns scripted replies; records the messages list at each call."""
-
-    def __init__(self, script):
-        self.script = list(script)
-        self.calls = []  # snapshot of len(messages) per call
-
-    def complete(self, messages, schemas):
-        self.calls.append(len(messages))
-        return self.script.pop(0)
-
-
-def text_reply(content, finish="stop"):
-    return {"message": {"role": "assistant", "content": content}, "finish_reason": finish, "usage": None}
-
-
-def tool_reply(*calls):
-    return {
-        "message": {
-            "role": "assistant",
-            "content": None,
-            "tool_calls": [
-                {"id": cid, "type": "function", "function": {"name": name, "arguments": args}}
-                for cid, name, args in calls
-            ],
-        },
-        "finish_reason": "tool_calls",
-        "usage": None,
-    }
+from tests.fakes import FakeModel, text_reply, tool_reply
 
 
 def make_agent(model, registry=None, **kwargs):

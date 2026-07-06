@@ -35,6 +35,7 @@ class Agent:
         approve: Callable[[str, dict], bool] = lambda name, args: True,
         emit: Callable[[str], None] = print,
         on_usage: Callable[[dict], None] | None = None,
+        on_message: Callable[[dict], None] | None = None,
         max_steps: int = 20,
         max_tool_chars: int = 2000,
     ):
@@ -45,6 +46,7 @@ class Agent:
         self.approve = approve                  # the permission gate, as a callable
         self.emit = emit                        # user-facing lines go through here
         self.on_usage = on_usage                # token meter hook (CLI accumulates)
+        self.on_message = on_message            # persistence hook (sessions write here)
         self.max_steps = max_steps              # runaway-LOOP guard
         self.max_tool_chars = max_tool_chars    # crude output diet; Stage 3.1 replaces
 
@@ -57,7 +59,7 @@ class Agent:
                 self.on_usage(reply["usage"])
             # The model's move — text OR tool request — is part of the
             # conversation. Forgetting this append breaks the next call.
-            messages.append(msg)
+            self._append(messages, msg)
 
             if reply["finish_reason"] == "length":
                 self.emit("  [!] reply was cut off by the token limit - stopping this turn")
@@ -75,11 +77,20 @@ class Agent:
                 first_line = result.splitlines()[0] if result else ""
                 self.emit(f"  [tool] {call['function']['name']} -> {first_line[:80]}")
                 # tool_call_id echoes the model's id so results match requests.
-                messages.append(
-                    {"role": "tool", "tool_call_id": call["id"], "content": result}
+                self._append(
+                    messages,
+                    {"role": "tool", "tool_call_id": call["id"], "content": result},
                 )
 
         self.emit(f"  [!] hit MAX_STEPS={self.max_steps} - stopping this turn (runaway guard)")
+
+    def _append(self, messages: list, msg: dict) -> None:
+        """Every append flows through here so persistence sees every message
+        the moment it exists — crash-safety is a property of the loop, not
+        a courtesy of the caller."""
+        messages.append(msg)
+        if self.on_message:
+            self.on_message(msg)
 
     def _truncate(self, result: str) -> str:
         """Head + tail, never just head: shell output puts the error at the

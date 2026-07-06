@@ -10,6 +10,7 @@ Run:
     uv run python -m harness -y          # auto-approve gate (scripted runs)
 """
 
+import argparse
 import json
 import os
 import sys
@@ -22,6 +23,7 @@ import requests
 from dotenv import load_dotenv
 
 from harness.core.loop import Agent
+from harness.core.session import SessionStore
 from harness.providers.anthropic import AnthropicModel
 from harness.providers.openai_compat import OpenAICompatModel
 from harness.tools import basic
@@ -90,11 +92,38 @@ def make_gate(auto_approve: bool):
     return approve
 
 
+def parse_args(argv=None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(prog="harness")
+    parser.add_argument("provider", nargs="?", default="ollama", choices=PROVIDERS)
+    parser.add_argument("-y", "--yes", action="store_true", help="auto-approve the permission gate")
+    parser.add_argument(
+        "--resume", nargs="?", const="latest", default=None, metavar="ID",
+        help="continue a saved session (latest if no ID given)",
+    )
+    parser.add_argument("--sessions", action="store_true", help="list saved sessions and exit")
+    return parser.parse_args(argv)
+
+
 def main() -> None:
-    args = sys.argv[1:]
-    auto_approve = "-y" in args
-    provider_name = next((a for a in args if not a.startswith("-")), "ollama")
+    args = parse_args()
+    auto_approve = args.yes
+    provider_name = args.provider
     provider = PROVIDERS[provider_name]
+
+    store = SessionStore()
+    if args.sessions:
+        print("\n".join(store.listing()) or "no sessions yet")
+        return
+
+    if args.resume:
+        session_id = store.latest() if args.resume == "latest" else args.resume
+        if session_id is None:
+            sys.exit("nothing to resume - no sessions yet")
+        messages = store.load(session_id)
+        print(f"resumed session {session_id} ({len(messages)} messages)")
+    else:
+        session_id = store.new()
+        messages = []
 
     model = make_model(provider)
 
@@ -113,6 +142,9 @@ def main() -> None:
             f" | session: {totals['in']:,} in / {totals['out']:,} out"
         )
 
+    def persist(message: dict) -> None:
+        store.append(session_id, message)
+
     agent = Agent(
         model=model,
         registry=basic.REGISTRY,
@@ -120,11 +152,14 @@ def main() -> None:
         needs_permission=basic.NEEDS_PERMISSION,
         approve=make_gate(auto_approve),
         on_usage=on_usage,
+        on_message=persist,
     )
 
     print(f"researcher-harness | provider: {provider_name} | model: {provider['model']}")
-    print("type a task, 'exit' to quit")
-    messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+    print(f"session: {session_id} | type a task, 'exit' to quit")
+    if not messages:  # fresh session gets the system prompt as message zero
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        persist(messages[0])
     while True:
         try:
             user = input("\nyou> ").strip()
@@ -135,6 +170,7 @@ def main() -> None:
         if not user:
             continue
         messages.append({"role": "user", "content": user})
+        persist(messages[-1])
         try:
             agent.run_turn(messages)
         except requests.RequestException as e:
