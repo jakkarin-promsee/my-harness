@@ -26,6 +26,7 @@ from harness.core import budget
 from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
 from harness.core.session import SessionStore
+from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
 from harness.providers.openai_compat import OpenAICompatModel
 from harness.tools import basic
@@ -145,12 +146,30 @@ def main() -> None:
     def persist(message: dict) -> None:
         store.append(session_id, message)
 
-    agent = Agent(
+    gate = make_gate(auto_approve)
+
+    # The spawn tool closes over the LIVE messages list (rebound on /compact),
+    # hence the lambda instead of the list itself.
+    spawn_fn, spawn_schema = make_spawn_tool(
         model=model,
         registry=basic.REGISTRY,
         schemas=basic.SCHEMAS,
         needs_permission=basic.NEEDS_PERMISSION,
-        approve=make_gate(auto_approve),
+        approve=gate,
+        emit=print,
+        get_parent_messages=lambda: messages,
+        system_prompt=build_system_prompt(),
+        on_usage=on_usage,
+    )
+    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn)
+    schemas = basic.SCHEMAS + [spawn_schema]
+
+    agent = Agent(
+        model=model,
+        registry=registry,
+        schemas=schemas,
+        needs_permission=basic.NEEDS_PERMISSION,
+        approve=gate,
         on_usage=on_usage,
         on_message=persist,
     )
