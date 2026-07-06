@@ -71,11 +71,7 @@ class Agent:
                 return
 
             for call in tool_calls:
-                result = self._execute(call)
-                if len(result) > self.max_tool_chars:
-                    result = result[: self.max_tool_chars] + (
-                        f"\n[truncated {len(result) - self.max_tool_chars} chars]"
-                    )
+                result = self._truncate(self._execute(call))
                 first_line = result.splitlines()[0] if result else ""
                 self.emit(f"  [tool] {call['function']['name']} -> {first_line[:80]}")
                 # tool_call_id echoes the model's id so results match requests.
@@ -84,6 +80,20 @@ class Agent:
                 )
 
         self.emit(f"  [!] hit MAX_STEPS={self.max_steps} - stopping this turn (runaway guard)")
+
+    def _truncate(self, result: str) -> str:
+        """Head + tail, never just head: shell output puts the error at the
+        END — chopping the tail hides exactly the part that matters."""
+        if len(result) <= self.max_tool_chars:
+            return result
+        head = self.max_tool_chars * 3 // 4
+        tail = self.max_tool_chars - head
+        dropped = len(result) - head - tail
+        return (
+            result[:head]
+            + f"\n[... {dropped} chars truncated ...]\n"
+            + result[-tail:]
+        )
 
     def _execute(self, call: dict) -> str:
         name = call["function"]["name"]

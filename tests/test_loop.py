@@ -139,13 +139,17 @@ def test_tool_failures_become_error_text_not_crashes():
     assert "RuntimeError" in contents[3]
 
 
-def test_huge_tool_output_is_truncated():
+def test_huge_tool_output_keeps_head_and_tail():
+    # The error is usually at the END of shell output — the tail must survive.
+    payload = "HEAD" + "x" * 5000 + "TAIL"
     model = FakeModel([tool_reply(("i", "t", "{}")), text_reply("ok")])
     messages = [{"role": "user", "content": "go"}]
-    make_agent(model, {"t": lambda: "x" * 5000}, max_tool_chars=100).run_turn(messages)
-    tool_msg = messages[2]
-    assert "[truncated 4900 chars]" in tool_msg["content"]
-    assert len(tool_msg["content"]) < 200
+    make_agent(model, {"t": lambda: payload}, max_tool_chars=100).run_turn(messages)
+    content = messages[2]["content"]
+    assert content.startswith("HEAD")
+    assert content.endswith("TAIL")
+    assert "chars truncated" in content
+    assert len(content) < 200
 
 
 def test_usage_reaches_the_meter_hook():
