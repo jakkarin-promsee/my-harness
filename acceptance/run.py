@@ -16,6 +16,11 @@ import os
 import subprocess
 import sys
 
+# Windows pipes default to cp1252; one ✓ from a model then kills a whole task
+# with UnicodeEncodeError (measured 2026-07-07, task C). UTF-8, never crash.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from harness.cli.repl import PROVIDERS, make_gate, make_model  # noqa: E402 (side effects wanted)
@@ -43,8 +48,10 @@ def rm(path: str) -> None:
 def verify_fizzbuzz(final: str):
     if not os.path.exists("fizzbuzz.py"):
         return False, "fizzbuzz.py was not created"
-    out = sh("uv run python fizzbuzz.py").stdout
-    ok = "FizzBuzz" in out and "Fizz" in out and "Buzz" in out
+    # Case-insensitive: the prompt itself says "fizzbuzz" — qwen3:4b-instruct
+    # faithfully printed lowercase and failed the old check (2026-07-07).
+    out = sh("uv run python fizzbuzz.py").stdout.lower()
+    ok = "fizzbuzz" in out and "fizz" in out and "buzz" in out
     return ok, "program output verified" if ok else f"bad program output: {out[:60]!r}"
 
 

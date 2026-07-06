@@ -15,6 +15,11 @@ import json
 import os
 import sys
 
+# Windows pipes/legacy consoles default to cp1252; a single ✓ or emoji from a
+# model then crashes print() with UnicodeEncodeError. UTF-8, never crash.
+sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+sys.stderr.reconfigure(encoding="utf-8", errors="replace")
+
 import truststore
 
 truststore.inject_into_ssl()  # this machine has TLS interception (see labs/02)
