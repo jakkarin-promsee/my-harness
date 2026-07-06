@@ -14,7 +14,7 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 
 ## Current status
 
-- **Stage: 1 (MVP) — code done, acceptance green (2026-07-06).** `mvp/harness.py` (~260 lines) passes all three acceptance tasks on `gemini-2.5-flash-lite` (B also passes on local `qwen3:4b`). Model lessons: `llama3.2:3b` fabricates instead of reading — unusable; `qwen3:4b` must never get `temperature: 0` (infinite thinking loops). Remaining for Stage 1 exit: owner walks through the file line by line (rule 3), owner drives an interactive session himself.
+- **Stage: 2 (Copy the seniors) — in progress (2026-07-06). 2.0 done, next up: 2.1 provider adapter.** The living code is the `harness/` package (`uv run python -m harness [gemini] [-y]`); 14 FakeModel tests (`uv run pytest -q`, zero tokens) pin the loop's contract; acceptance A/B/C green on `gemini-2.5-flash-lite`, B also on local `qwen3:4b`. Model lessons: `llama3.2:3b` fabricates instead of reading — unusable for agent tasks; `qwen3:4b` must never get `temperature: 0` (infinite thinking loops). Owner still owes himself the line-by-line walkthrough (rule 3).
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
 ## Stack & environment
@@ -36,7 +36,9 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 | `ROADMAP.md` | The plan. Stages 0–3, exit criteria, reference shelf |
 | `docs/notes/` | Design notes — one per feature, written *before* implementing (created in Stage 0) |
 | `labs/` | Tiny throwaway experiments (raw API calls, wire-format studies) (created in Stage 0) |
-| `mvp/` | Stage 1 single-file harness (created in Stage 1) |
+| `harness/` | **The living codebase** (Stage 2+): `core/` loop, `providers/`, `tools/`, `cli/`. Run: `uv run python -m harness [gemini] [-y]` |
+| `tests/` | FakeModel pytest suite — the loop's contract, zero tokens. Run: `uv run pytest -q` |
+| `mvp/` | Stage 1 single-file harness — **frozen** as the learning artifact; `mvp/ACCEPTANCE.md` + fixtures still serve as the acceptance suite |
 | `prompt/` | The owner's **real prompt library** from the research project. Read-only reference — do not edit. Raw material for Stage 3.2 (prompt middleware) |
 | `harness-context-v3.md` | Legacy brief (see below) |
 

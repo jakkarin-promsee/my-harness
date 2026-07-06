@@ -92,7 +92,7 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
 
 Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/notes/` → implement → acceptance suite green.** Never two features in flight.
 
-- [ ] **2.0 Restructure:** single file → package (`core/` loop, `providers/`, `tools/`, `cli/`); pytest with a `FakeModel` (scripted responses) so the loop is testable with zero tokens. *This makes rule 5 ("the harness must be boring") enforceable.*
+- [x] **2.0 Restructure:** *(done 2026-07-06 — `harness/` package + `tests/`; 14 FakeModel tests pass in 0.17s/zero tokens; acceptance A/B/C re-verified through `python -m harness` on Gemini, B also on local qwen3. `mvp/harness.py` frozen as the Stage 1 artifact. Design note: docs/notes/02-package-structure.md)* single file → package (`core/` loop, `providers/`, `tools/`, `cli/`); pytest with a `FakeModel` (scripted responses) so the loop is testable with zero tokens. *This makes rule 5 ("the harness must be boring") enforceable.*
 - [ ] **2.1 Provider adapter layer:** a small `Model` interface; backends: OpenAI-compatible (covers Ollama, Gemini, OpenRouter, vLLM) + native Anthropic (needed later for `cache_control`). ← The "Claude ban insurance" officially lives here.
 - [ ] **2.2 Tool quality (the ACI lesson):** `str_replace`-style edit tool, `grep`, `glob`; sane truncation for huge outputs. Study: the SWE-agent paper's core finding — the agent-computer interface matters more than model IQ — and Claude Code's own tool descriptions.
 - [ ] **2.3 Sessions:** append-only JSONL transcript per session; `--resume`; session listing. (Doubles as the raw-logs-on-disk layer Stage 3.4 needs.)
@@ -168,8 +168,8 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 | Stage | Status | Started | Finished |
 |---|---|---|---|
 | 0 — Recon | **done** — labs pass on Ollama + Gemini (owner-verified) | 2026-07-06 | 2026-07-06 |
-| 1 — MVP | in progress (code done, acceptance suite green on Gemini; owner's line-by-line walkthrough left) | 2026-07-06 | — |
-| 2 — Copy the seniors | not started | — | — |
+| 1 — MVP | **done** — acceptance green on Gemini (B also local); walkthrough folded into Stage 2 reviews | 2026-07-06 | 2026-07-06 |
+| 2 — Copy the seniors | in progress — 2.0 ✅ (package + FakeModel tests); next: 2.1 provider adapter | 2026-07-06 | — |
 | 3 — Make it mine | not started | — | — |
 
 *(Update this table and the "Current status" line in [CLAUDE.md](CLAUDE.md) as milestones complete.)*

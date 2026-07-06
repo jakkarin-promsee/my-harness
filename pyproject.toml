@@ -10,3 +10,17 @@ dependencies = [
 
 [tool.uv]
 system-certs = true
+
+[dependency-groups]
+dev = [
+    "pytest>=9.1.1",
+]
+
+[tool.pytest.ini_options]
+# Only tests/ — mvp/fixtures/test_stats.py matches test_*.py but is an
+# acceptance fixture (it sys.exit(1)s by design), not a pytest test.
+testpaths = ["tests"]
+# The harness/ package lives at repo root and isn't pip-installed;
+# put the root on sys.path so tests can import it (same thing the
+# `python -m harness` entry point gets for free from cwd).
+pythonpath = ["."]
