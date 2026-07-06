@@ -13,15 +13,20 @@ class FakeModel:
         return self.script.pop(0)
 
 
-def text_reply(content, finish="stop"):
-    return {"message": {"role": "assistant", "content": content}, "finish_reason": finish, "usage": None}
+def text_reply(content, finish="stop", reasoning=None):
+    return {
+        "message": {"role": "assistant", "content": content},
+        "finish_reason": finish,
+        "usage": None,
+        "reasoning": reasoning,
+    }
 
 
-def tool_reply(*calls):
+def tool_reply(*calls, content=None, reasoning=None):
     return {
         "message": {
             "role": "assistant",
-            "content": None,
+            "content": content,
             "tool_calls": [
                 {"id": cid, "type": "function", "function": {"name": name, "arguments": args}}
                 for cid, name, args in calls
@@ -29,4 +34,5 @@ def tool_reply(*calls):
         },
         "finish_reason": "tool_calls",
         "usage": None,
+        "reasoning": reasoning,
     }

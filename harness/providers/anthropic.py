@@ -113,17 +113,19 @@ def from_anthropic_reply(data: dict) -> dict:
 
 
 class AnthropicModel:
-    def __init__(self, key: str, model: str, url: str = API_URL, timeout: int = 600):
+    def __init__(self, key: str, model: str, url: str = API_URL, timeout: int = 600,
+                 max_tokens: int = 2000):
         self.key = key
         self.model = model
         self.url = url
         self.timeout = timeout
+        self.max_tokens = max_tokens
 
     def complete(self, messages: list, tools: list) -> dict:
         system, anthropic_messages = to_anthropic_messages(messages)
         payload = {
             "model": self.model,
-            "max_tokens": 2000,  # REQUIRED here (optional in OpenAI-compat)
+            "max_tokens": self.max_tokens,  # REQUIRED here (optional in OpenAI-compat)
             "messages": anthropic_messages,
             "tools": to_anthropic_tools(tools),
         }

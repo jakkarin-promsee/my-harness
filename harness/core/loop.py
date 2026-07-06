@@ -10,10 +10,13 @@ The loop's contract is what it does to `messages` (the list is mutated in
 place; it is the conversation):
 
     text reply            -> appended, turn ends
-    tool_calls reply      -> assistant msg appended, every call executed,
+    tool_calls reply      -> preamble content emitted first (the model
+                             narrating before it acts), every call executed,
                              one role:"tool" msg per call (tool_call_id echoed),
                              then call the model again
-    finish_reason length  -> turn ends immediately (generation was cut off)
+    reasoning in reply    -> shown via emit_thinking; NOT in the message, so
+                             it never re-enters context (adapter strips it)
+    finish_reason length  -> one nudge ("stop thinking, act"), second -> stop
     MAX_STEPS exhausted   -> hard stop (runaway guard)
 
 Tool problems — unknown tool, denied permission, bad-JSON arguments, a raised
@@ -23,6 +26,17 @@ the model can read what went wrong and adapt.
 
 import json
 from typing import Callable
+
+# The cut-off nudge (docs/notes/11-visible-mind.md): thinking models burn the
+# whole generation budget reasoning and die at finish_reason "length" —
+# measured on qwen3:4b (acceptance-local.log, tasks A and G). "/no_think" is
+# qwen3's documented soft switch disabling thinking for the next turn; to
+# every other model it is inert text.
+LENGTH_NUDGE = (
+    "(Your previous reply was cut off by the token limit. Do not think out "
+    "loud. Call the tool you need now, or give the final answer in a few "
+    "short sentences. /no_think)"
+)
 
 
 class Agent:
@@ -34,6 +48,7 @@ class Agent:
         needs_permission: set[str] = frozenset(),
         approve: Callable[[str, dict], bool] = lambda name, args: True,
         emit: Callable[[str], None] = print,
+        emit_thinking: Callable[[str], None] | None = None,
         on_usage: Callable[[dict], None] | None = None,
         on_message: Callable[[dict], None] | None = None,
         max_steps: int = 20,
@@ -45,6 +60,11 @@ class Agent:
         self.needs_permission = needs_permission
         self.approve = approve                  # the permission gate, as a callable
         self.emit = emit                        # user-facing lines go through here
+        # Thinking is presentation too: injectable so the REPL can dim it.
+        # The default routes through emit — visible everywhere, styled nowhere.
+        self.emit_thinking = emit_thinking or (
+            lambda text: self.emit(f"  [thinking] {text}")
+        )
         self.on_usage = on_usage                # token meter hook (CLI accumulates)
         self.on_message = on_message            # persistence hook (sessions write here)
         self.max_steps = max_steps              # runaway-LOOP guard
@@ -52,19 +72,36 @@ class Agent:
 
     def run_turn(self, messages: list) -> None:
         """One user request -> the model chains tool calls -> final text."""
-        nudged = False
+        nudged = False          # one empty-reply nudge per turn
+        length_nudged = False   # one cut-off nudge per turn
         for _ in range(self.max_steps):
             reply = self.model.complete(messages, self.schemas)
             msg = reply["message"]
             if self.on_usage and reply.get("usage"):
                 self.on_usage(reply["usage"])
+            if reply.get("reasoning"):
+                # Shown to the human, absent from msg: the adapter already
+                # stripped it, so it costs zero context from here on.
+                self.emit_thinking(reply["reasoning"])
+
+            if reply["finish_reason"] == "length":
+                # A cut-off reply can carry half-written tool calls. They are
+                # garbage — and an unanswered tool_call poisons strict
+                # OpenAI-style history on the next POST. Drop them, keep the
+                # (possibly partial) text, then nudge the model to act.
+                msg.pop("tool_calls", None)
+                self._append(messages, msg)
+                if not length_nudged:
+                    length_nudged = True
+                    self.emit("  [!] reply cut off by the token limit - nudging once...")
+                    self._append(messages, {"role": "user", "content": LENGTH_NUDGE})
+                    continue
+                self.emit("  [!] cut off by the token limit again - stopping this turn")
+                return
+
             # The model's move — text OR tool request — is part of the
             # conversation. Forgetting this append breaks the next call.
             self._append(messages, msg)
-
-            if reply["finish_reason"] == "length":
-                self.emit("  [!] reply was cut off by the token limit - stopping this turn")
-                return
 
             # Presence of tool_calls, not finish_reason, is the robust signal:
             # some Ollama models say "stop" while still carrying tool calls.
@@ -84,6 +121,13 @@ class Agent:
                     continue
                 self.emit(f"\nagent> {content or '(no text)'}")
                 return
+
+            # Preamble: text riding along WITH tool calls is the model
+            # narrating before it acts ("let me read X first"). Claude Code
+            # prints it; swallowing it was why turns felt like silent
+            # tool->tool->tool (docs/notes/11-visible-mind.md).
+            if msg.get("content"):
+                self.emit(f"\nagent> {msg['content']}")
 
             for call in tool_calls:
                 result = self._truncate(self._execute(call))

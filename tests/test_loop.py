@@ -65,14 +65,54 @@ def test_max_steps_stops_a_runaway_loop():
     assert len(model.calls) == 5  # hard stop, not 99
 
 
-def test_length_finish_ends_turn_without_tool_execution():
+def test_length_finish_nudges_without_tool_execution():
+    # A truncated reply's tool calls are garbage: never executed, and STRIPPED
+    # from history (an unanswered tool_call poisons the next POST). The loop
+    # nudges once instead of dying (docs/notes/11-visible-mind.md).
     boom = lambda: pytest.fail("tool must not run on a truncated reply")  # noqa: E731
     truncated = tool_reply(("i", "t", "{}"))
     truncated["finish_reason"] = "length"
-    model = FakeModel([truncated])
+    model = FakeModel([truncated, text_reply("recovered")])
     messages = [{"role": "user", "content": "go"}]
     make_agent(model, {"t": boom}).run_turn(messages)
-    assert len(messages) == 2  # assistant msg appended, then stop
+    assert "tool_calls" not in messages[1]          # truncated calls dropped
+    assert "cut off" in messages[2]["content"]      # the nudge message
+    assert messages[3]["content"] == "recovered"
+
+
+def test_two_length_replies_end_the_turn_without_looping():
+    model = FakeModel([text_reply("half a tho", finish="length"),
+                       text_reply("ught agai", finish="length")])
+    messages = [{"role": "user", "content": "go"}]
+    make_agent(model).run_turn(messages)
+    assert len(model.calls) == 2                    # exactly one nudge, no spiral
+
+
+def test_preamble_content_is_emitted_before_the_tool_runs():
+    order = []
+    model = FakeModel([
+        tool_reply(("i", "t", "{}"), content="let me check the file first"),
+        text_reply("done"),
+    ])
+    agent = Agent(
+        model=model,
+        registry={"t": lambda: order.append("tool ran") or "ok"},
+        schemas=[],
+        emit=lambda line: order.append(line),
+    )
+    agent.run_turn([{"role": "user", "content": "go"}])
+    preamble = next(i for i, x in enumerate(order) if "let me check" in x)
+    ran = order.index("tool ran")
+    assert preamble < ran                           # narration BEFORE action
+
+
+def test_reasoning_reaches_emit_thinking_but_not_history():
+    thoughts = []
+    model = FakeModel([text_reply("answer", reasoning="hmm, let me think")])
+    messages = [{"role": "user", "content": "go"}]
+    make_agent(model, emit_thinking=thoughts.append).run_turn(messages)
+    assert thoughts == ["hmm, let me think"]
+    assert all("reasoning" not in m for m in messages)  # scratchpad, not context
 
 
 def test_denied_permission_reports_without_executing():

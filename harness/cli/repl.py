@@ -42,8 +42,14 @@ PROVIDERS = {
         "kind": "openai",
         "url": "http://localhost:11434/v1/chat/completions",
         "key": "ollama",
-        "model": os.getenv("OLLAMA_MODEL", "llama3.2:3b"),
-        "context_window": 4096,  # Ollama's default num_ctx (see docs/problem.md)
+        "model": os.getenv("OLLAMA_MODEL", "qwen3:4b-instruct"),
+        # Ollama's window is set machine-wide by this env var (8192 on this
+        # machine since 2026-07-07); 4096 is Ollama's own default.
+        "context_window": int(os.getenv("OLLAMA_CONTEXT_LENGTH", "4096")),
+        # Local tokens are free and thinking models spend heavily BEFORE the
+        # tool call — give generation headroom (2000 was thinking-death,
+        # see docs/notes/11-visible-mind.md).
+        "max_tokens": 4096,
     },
     "gemini": {
         "kind": "openai",
@@ -51,17 +57,20 @@ PROVIDERS = {
         "key": os.getenv("GEMINI_API_KEY", ""),
         "model": "gemini-2.5-flash-lite",
         "context_window": 1_048_576,
+        "max_tokens": 2000,
     },
     "anthropic": {
         "kind": "anthropic",
         "key": os.getenv("ANTHROPIC_API_KEY", ""),
         "model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
         "context_window": 200_000,
+        "max_tokens": 2000,
     },
 }
 
 
 def make_model(cfg: dict):
+    max_tokens = cfg.get("max_tokens", 2000)
     if cfg["kind"] == "anthropic":
         if not cfg["key"]:
             sys.exit(
@@ -69,8 +78,19 @@ def make_model(cfg: dict):
                 "a stray key silently bills pay-as-you-go. Set it in .env only\n"
                 "when you deliberately want live Anthropic calls."
             )
-        return AnthropicModel(cfg["key"], cfg["model"])
-    return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"])
+        return AnthropicModel(cfg["key"], cfg["model"], max_tokens=max_tokens)
+    return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"], max_tokens=max_tokens)
+
+
+# Thinking is rendered dim (ANSI SGR 2) so the inner voice reads as inner
+# voice. os.system("") is the documented trick that flips the legacy Windows
+# console into VT mode; it's a no-op everywhere else.
+os.system("")
+DIM, RESET = "\033[2m", "\033[0m"
+
+
+def print_thinking(text: str) -> None:
+    print(f"{DIM}  [thinking] {text}{RESET}")
 
 # The system prompt is ASSEMBLED, not hardcoded — see core/context.py:
 # identity template + environment block + AGENTS.md project memory.
@@ -180,6 +200,7 @@ def main() -> None:
         # silently (allow), who prompts (ask), who never runs (deny).
         needs_permission=set(registry),
         approve=gate,
+        emit_thinking=print_thinking,
         on_usage=on_usage,
         on_message=persist,
     )
