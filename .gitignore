@@ -15,3 +15,6 @@ uv.lock
 # os / editor
 .DS_Store
 Thumbs.db
+
+# claude code runtime junk
+.claude/scheduled_tasks.lock
