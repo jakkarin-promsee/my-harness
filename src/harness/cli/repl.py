@@ -22,7 +22,7 @@ sys.stderr.reconfigure(encoding="utf-8", errors="replace")
 
 import truststore
 
-truststore.inject_into_ssl()  # this machine has TLS interception (see labs/02)
+truststore.inject_into_ssl()  # this machine has TLS interception (see archive/labs/02)
 
 import requests
 from dotenv import load_dotenv
