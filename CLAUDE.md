@@ -14,7 +14,7 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 
 ## Current status
 
-- **Stage: 2 (Copy the seniors) — in progress (2026-07-06). 2.0 done, next up: 2.1 provider adapter.** The living code is the `harness/` package (`uv run python -m harness [gemini] [-y]`); 14 FakeModel tests (`uv run pytest -q`, zero tokens) pin the loop's contract; acceptance A/B/C green on `gemini-2.5-flash-lite`, B also on local `qwen3:4b`. Model lessons: `llama3.2:3b` fabricates instead of reading — unusable for agent tasks; `qwen3:4b` must never get `temperature: 0` (infinite thinking loops). Owner still owes himself the line-by-line walkthrough (rule 3).
+- **Stage: 2 (Copy the seniors) — features 2.0–2.8 ALL done (2026-07-06); 2.9 stretch skipped.** 56 offline tests (`uv run pytest -q`); exit-gate suite `uv run python acceptance/run.py <provider>`: **7/7 on gemini-2.5-flash-lite**, local qwen3:4b leg pending. **Read [docs/problem.md](docs/problem.md)** — owner decisions block the formal Stage-2 exit (local-model choice) and Anthropic live test. Model lessons: `llama3.2:3b` fabricates — unusable; `qwen3:4b` never gets `temperature: 0`; flash-lite throws 503s (retry handles) and occasional empty replies (nudge handles).
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
 ## Stack & environment
@@ -36,8 +36,13 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 | `ROADMAP.md` | The plan. Stages 0–3, exit criteria, reference shelf |
 | `docs/notes/` | Design notes — one per feature, written *before* implementing (created in Stage 0) |
 | `labs/` | Tiny throwaway experiments (raw API calls, wire-format studies) (created in Stage 0) |
-| `harness/` | **The living codebase** (Stage 2+): `core/` loop, `providers/`, `tools/`, `cli/`. Run: `uv run python -m harness [gemini] [-y]` |
+| `harness/` | **The living codebase** (Stage 2+): `core/` loop, `providers/`, `tools/`, `cli/`, `prompts/`. Run: `uv run python -m harness [ollama\|gemini\|anthropic] [-y] [--resume] [--sessions]` |
 | `tests/` | FakeModel pytest suite — the loop's contract, zero tokens. Run: `uv run pytest -q` |
+| `acceptance/` | Stage-2 exit gate: live-model suite. Run: `uv run python acceptance/run.py <provider>` |
+| `commands/` | Slash-command template library (`/name args` reads `commands/name.md`) |
+| `harness.toml` | Permissions policy (allow/ask/deny per tool), versioned on purpose |
+| `AGENTS.md` | Project memory injected into the harness's own system prompt |
+| `docs/problem.md` | Open problems needing the owner — check when returning to the project |
 | `mvp/` | Stage 1 single-file harness — **frozen** as the learning artifact; `mvp/ACCEPTANCE.md` + fixtures still serve as the acceptance suite |
 | `prompt/` | The owner's **real prompt library** from the research project. Read-only reference — do not edit. Raw material for Stage 3.2 (prompt middleware) |
 | `harness-context-v3.md` | Legacy brief (see below) |

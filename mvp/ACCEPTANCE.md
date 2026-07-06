@@ -47,3 +47,8 @@ re-runs the test, final answer reports all PASS. Reset the planted bug afterward
 | 2026-07-06 | llama3.2:3b | — | FAIL | — | Ignores "read the file": ran global `pip freeze`, then fabricated a poetry config. Tool-calls fine mechanically; too weak to trust. |
 | 2026-07-06 | qwen3:4b | FAIL | PASS | — | B clean (read_file → exact 3 deps). A: burned the whole 2,000-token budget *thinking*, never reached the tool call (GPU 33% CPU-offloaded next to a game). Guard caught it as `length`. |
 | 2026-07-06 | gemini-2.5-flash-lite | PASS | PASS | PASS | A: full write→run→report, correct output; survived two 503s via the retry. B: read_file → exact 3 deps, 35 tokens out. C: read → fixed `mean` → test exit 0 (independently re-verified). One quirk seen: an occasional fully-empty reply (0 tokens) after a tool result — rerun clears it. |
+
+> **Since Stage 2:** this suite grew into the scripted exit gate at `acceptance/run.py`
+> (7 tasks incl. grep/edit/glob/subagent, one command per provider). 2026-07-06:
+> **7/7 PASS on gemini-2.5-flash-lite** (empty-reply nudge + 5xx retry both fired
+> mid-suite and saved their tasks). Local qwen3:4b leg: docs/problem.md #1.

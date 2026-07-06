@@ -93,17 +93,19 @@ Each stage has **exit criteria**. Do not start stage N+1 before stage N's criter
 Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/notes/` → implement → acceptance suite green.** Never two features in flight.
 
 - [x] **2.0 Restructure:** *(done 2026-07-06 — `harness/` package + `tests/`; 14 FakeModel tests pass in 0.17s/zero tokens; acceptance A/B/C re-verified through `python -m harness` on Gemini, B also on local qwen3. `mvp/harness.py` frozen as the Stage 1 artifact. Design note: docs/notes/02-package-structure.md)* single file → package (`core/` loop, `providers/`, `tools/`, `cli/`); pytest with a `FakeModel` (scripted responses) so the loop is testable with zero tokens. *This makes rule 5 ("the harness must be boring") enforceable.*
-- [ ] **2.1 Provider adapter layer:** a small `Model` interface; backends: OpenAI-compatible (covers Ollama, Gemini, OpenRouter, vLLM) + native Anthropic (needed later for `cache_control`). ← The "Claude ban insurance" officially lives here.
-- [ ] **2.2 Tool quality (the ACI lesson):** `str_replace`-style edit tool, `grep`, `glob`; sane truncation for huge outputs. Study: the SWE-agent paper's core finding — the agent-computer interface matters more than model IQ — and Claude Code's own tool descriptions.
-- [ ] **2.3 Sessions:** append-only JSONL transcript per session; `--resume`; session listing. (Doubles as the raw-logs-on-disk layer Stage 3.4 needs.)
-- [ ] **2.4 System prompt & context assembly:** `system.md`, a project-memory file (our own CLAUDE.md-equivalent), environment info block. Study how Claude Code/opencode assemble the first message.
-- [ ] **2.5 Context management v1 — the standard way:** live token budget vs. model context window, warning threshold, and `/compact` via model summarization. Yes, build the thing we hate: it establishes the baseline (cost + signal loss) that Stage 3.1 must beat, and teaches why everyone ships it anyway.
-- [ ] **2.6 Subagents:** `spawn(prompt, context="fresh"|"fork")` returning a summary message to the parent. Both modes — Stage 3.5 needs both.
-- [ ] **2.7 Slash commands + template library:** load `*.md` prompt files as invokable commands with `{{slot}}` arguments. (Direct ancestor of Stage 3.2.)
-- [ ] **2.8 Permissions v2:** allowlist/denylist config, per-tool policy, auto-approve read-only tools.
-- [ ] **2.9 Stretch (optional, in any order):** streaming tool output; pre/post-tool hooks; MCP client; Anthropic prompt caching (`cache_control` breakpoints + measured hit rates).
+- [x] **2.1 Provider adapter layer** *(done 2026-07-06; note 03)*: `Model` protocol; OpenAI-compat + native Anthropic adapter (both wire directions, pure-function translation, offline-tested; live test awaits a deliberate key — docs/problem.md #3). ← The "Claude ban insurance" officially lives here.
+- [x] **2.2 Tool quality (the ACI lesson)** *(done 2026-07-06; note 04)*: `edit_file` with the uniqueness rule, bounded `grep`/`glob`, head+tail truncation (errors live at the end of output).
+- [x] **2.3 Sessions** *(done 2026-07-06; note 05)*: per-message JSONL via the loop's `on_message` hook; `--resume [id]`, `--sessions`. (Doubles as the raw-logs-on-disk layer Stage 3.4 needs.)
+- [x] **2.4 System prompt & context assembly** *(done 2026-07-06; note 06)*: `prompts/system.md` template + env block + `AGENTS.md` project memory.
+- [x] **2.5 Context management v1 — the standard way** *(done 2026-07-06; note 07)*: chars/4 estimator, 80% warning, `/tokens`, `/compact` (summarize-and-replace, cost surfaced, continues in a new session file). The baseline Stage 3.1 must beat.
+- [x] **2.6 Subagents** *(done 2026-07-06; note 08)*: `spawn_subagent(prompt, context="fresh"|"fork")`; child = plain Agent, no recursion, only final text returns to the parent.
+- [x] **2.7 Slash commands + template library** *(done 2026-07-06; note 09)*: `commands/*.md` as `/name` with `{{args}}`; builtins first. (Direct ancestor of Stage 3.2.)
+- [x] **2.8 Permissions v2** *(done 2026-07-06; note 10)*: `harness.toml` allow/ask/deny per tool, fail-closed precedence, `-y` never overrides deny.
+- [ ] **2.9 Stretch (optional, in any order):** streaming tool output; pre/post-tool hooks; MCP client; Anthropic prompt caching (`cache_control` breakpoints + measured hit rates). *(Consciously skipped in the 2026-07-06 run — none blocks Stage 3; caching becomes relevant when the Anthropic key arrives.)*
 
 **Exit criteria (the eval gate):** a scripted acceptance suite (~5–10 small tasks, grown from the Stage 1 three) runs with one command and passes on two providers. Only then does Stage 3 open.
+
+> **Status 2026-07-06:** suite exists (`acceptance/run.py`, 7 tasks, reality-checking verifiers). `gemini-2.5-flash-lite`: **7/7 PASS**. Local `qwen3:4b` leg: pending/partial — the model, not the harness, is the bottleneck (docs/problem.md #1 holds the owner's three options). The gate stays formally open until the owner picks one.
 
 ---
 
@@ -169,7 +171,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 |---|---|---|---|
 | 0 — Recon | **done** — labs pass on Ollama + Gemini (owner-verified) | 2026-07-06 | 2026-07-06 |
 | 1 — MVP | **done** — acceptance green on Gemini (B also local); walkthrough folded into Stage 2 reviews | 2026-07-06 | 2026-07-06 |
-| 2 — Copy the seniors | in progress — 2.0 ✅ (package + FakeModel tests); next: 2.1 provider adapter | 2026-07-06 | — |
+| 2 — Copy the seniors | features 2.0–2.8 **done** (2.9 stretch skipped); exit gate: 7/7 on Gemini, local leg pending owner decision (problem.md #1) | 2026-07-06 | — |
 | 3 — Make it mine | not started | — | — |
 
 *(Update this table and the "Current status" line in [CLAUDE.md](CLAUDE.md) as milestones complete.)*
