@@ -1,6 +1,9 @@
-"""The four basic tools against a temp directory — no model involved at all."""
+"""The core tools against a temp directory — no model involved at all.
+web_fetch runs against a fake requests.get — no network either."""
 
 import json
+
+import requests
 
 from harness.tools import basic
 
@@ -33,7 +36,7 @@ def test_registry_and_schemas_agree():
     schema_names = {s["function"]["name"] for s in basic.SCHEMAS}
     assert schema_names == set(basic.REGISTRY) == {
         "read_file", "write_file", "list_dir", "run_shell",
-        "edit_file", "grep", "glob",
+        "edit_file", "grep", "glob", "web_fetch",
     }
     assert basic.NEEDS_PERMISSION <= schema_names  # gate only guards real tools
 
@@ -70,6 +73,75 @@ def test_grep_caps_at_50_matches(tmp_path):
     (tmp_path / "big.txt").write_text("hit\n" * 80)
     out = basic.grep("hit", str(tmp_path))
     assert "[stopped at 50 matches]" in out
+
+
+# ---- web_fetch (note 19): fake requests.get, zero network ----------------
+
+class FakeResponse:
+    def __init__(self, body=b"", status=200, ctype="text/html; charset=utf-8",
+                 reason="OK", encoding="utf-8"):
+        self.status_code = status
+        self.reason = reason
+        self.headers = {"content-type": ctype}
+        self.encoding = encoding
+        self._body = body
+
+    def iter_content(self, chunk_size=65536):
+        for i in range(0, len(self._body), chunk_size):
+            yield self._body[i:i + chunk_size]
+
+    def close(self):
+        pass
+
+
+def _serve(monkeypatch, response):
+    monkeypatch.setattr(basic.requests, "get", lambda url, **kw: response)
+
+
+def test_web_fetch_strips_html_and_prepends_title(monkeypatch):
+    html = (b"<html><head><title>My   Page</title>"
+            b"<script>var secret = 1;</script><style>.x{}</style></head>"
+            b"<body><h1>Heading</h1><p>Some    text\t\there.</p></body></html>")
+    _serve(monkeypatch, FakeResponse(html))
+    out = basic.web_fetch("https://example.test/")
+    assert out.startswith("Title: My Page")
+    assert "Heading" in out and "Some text here." in out
+    assert "secret" not in out and ".x{}" not in out  # script/style dropped
+
+
+def test_web_fetch_refuses_non_http_schemes():
+    assert basic.web_fetch("file:///etc/passwd").startswith("ERROR: only http(s)")
+
+
+def test_web_fetch_reports_http_errors_as_text(monkeypatch):
+    _serve(monkeypatch, FakeResponse(status=404, reason="Not Found"))
+    assert basic.web_fetch("https://example.test/gone").startswith("ERROR: HTTP 404 Not Found")
+
+
+def test_web_fetch_refuses_binary_content(monkeypatch):
+    _serve(monkeypatch, FakeResponse(ctype="image/png"))
+    assert "unsupported content type" in basic.web_fetch("https://example.test/a.png")
+
+
+def test_web_fetch_passes_plain_text_through(monkeypatch):
+    _serve(monkeypatch, FakeResponse(b'{"answer": 42}', ctype="application/json"))
+    assert basic.web_fetch("https://example.test/api") == '{"answer": 42}'
+
+
+def test_web_fetch_truncates_head_and_tail(monkeypatch):
+    body = b"S" + b"x" * (basic.WEB_MAX_CHARS * 2) + b"E"
+    _serve(monkeypatch, FakeResponse(body, ctype="text/plain"))
+    out = basic.web_fetch("https://example.test/big")
+    assert "chars truncated" in out
+    assert out.startswith("S") and out.endswith("E")  # head AND tail survive
+    assert len(out) < basic.WEB_MAX_CHARS + 100
+
+
+def test_web_fetch_turns_connection_errors_into_text(monkeypatch):
+    def boom(url, **kw):
+        raise requests.ConnectionError("refused")
+    monkeypatch.setattr(basic.requests, "get", boom)
+    assert basic.web_fetch("https://example.test/").startswith("ERROR: fetch failed")
 
 
 def test_glob_returns_newest_first(tmp_path):

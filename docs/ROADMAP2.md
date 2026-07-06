@@ -185,7 +185,7 @@ One command, two providers, like Stage 2:
 | 2.10 Permission modes | **done** 2026-07-07 — note 16; gate 8/8 local qwen3 (new task H: explore blocks the write, agent reports it) |
 | 2.11 Agents (roles) | **done** 2026-07-07 — note 17; gate 9/9 local (new task I: plan role investigates read-only, offers the `/agent build` handoff) |
 | 2.12 Reasoning control | **done** 2026-07-07 — note 18; new native `/api/chat` adapter (v1 provably ignores `think`); gate 9/9 on BOTH providers; think-lab economics recorded |
-| 2.13 web_fetch + diff gate | not started |
+| 2.13 web_fetch + diff gate | **done** 2026-07-07 — note 19; gate 10/10 on BOTH providers (new task J: fetch example.com, report the heading); diff gate proven by pytest snapshots (`tests/test_repl.py`) |
 | 2.14 Skills | not started |
 | 2.15 Local lab | not started |
 | 2.16 MCP client (stretch) | not started |

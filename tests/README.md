@@ -14,7 +14,8 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 |---|---|
 | `fakes.py` | the `FakeModel` + helpers (not a test) |
 | `test_loop.py` | the loop's contract: tool chaining, appends, empty/length nudges, runaway guard |
-| `test_tools.py` | the 7 basic file/shell tools |
+| `test_tools.py` | the 8 core tools; `web_fetch` against a fake `requests.get` (2.13) |
+| `test_repl.py` | the gate's unified-diff preview: `render_diff` snapshots + the ask prompt (2.13) |
 | `test_todo.py` | todo replace-semantics + status validation |
 | `test_subagent.py` | fresh vs fork, child-tools-minus-spawn, only-final-text-returns |
 | `test_openai_compat.py` / `test_streaming.py` | the OpenAI adapter + SSE deltas; think→reasoning_effort (2.12) |

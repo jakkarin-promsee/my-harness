@@ -25,3 +25,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [16-permission-modes](16-permission-modes.md) | 2.10: chat/explore/build/auto profiles; the cwd scoping rule; `/mode` |
 | [17-agents](17-agents.md) | 2.11: roles as markdown — per-role prompt/mode/model; `/agent`; spawn `agent=` |
 | [18-reasoning-control](18-reasoning-control.md) | 2.12: `/think` knob; the native `/api/chat` dialect (v1 ignores `think`); the economics |
+| [19-web-and-diff](19-web-and-diff.md) | 2.13: `web_fetch` (stdlib HTML→text, two-belt truncation) + the unified-diff `ask` prompt |

@@ -1,4 +1,4 @@
-"""The four Stage-1 tools: implementation + JSON-schema advertisement.
+"""The core tool set: implementation + JSON-schema advertisement.
 
 A tool = a plain local function (what actually runs) + a schema (all the
 model ever sees). The model cannot execute anything — it *asks* by replying
@@ -12,7 +12,10 @@ import json
 import os
 import re
 import subprocess
+from html.parser import HTMLParser
 from pathlib import Path
+
+import requests
 
 # Directories no search should ever descend into.
 SKIP_DIRS = {".git", ".venv", "__pycache__", "node_modules", "sessions"}
@@ -93,6 +96,109 @@ def glob(pattern: str, path: str = ".") -> str:
     return json.dumps([str(p) for p in found[:100]])
 
 
+# --- web_fetch (note 19) ---------------------------------------------------
+# Bounds copied from opencode's webfetch (timeout) and right-sized for our
+# 8K window (download cap, output cap). The loop's 2,000-char diet still
+# applies on top — two belts, deliberately.
+WEB_TIMEOUT = 30            # seconds (opencode's DEFAULT_TIMEOUT)
+WEB_MAX_BYTES = 2_000_000   # stop downloading past this (opencode caps at 5 MB)
+WEB_MAX_CHARS = 8_000       # head+tail cap on the extracted text
+
+# The requests default UA ("python-requests/x") is 403'd all over the web;
+# every senior ships a browser string (opencode retries with a plain one).
+WEB_USER_AGENT = (
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+    "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
+)
+
+
+class _TextExtractor(HTMLParser):
+    """HTML -> readable text with the stdlib parser (tolerant of broken
+    markup, zero new dependencies). Skips the tags that are never prose,
+    breaks lines at block tags; whitespace collapse happens after."""
+
+    SKIP = {"script", "style", "noscript", "template", "iframe", "head"}
+    BLOCK = {"p", "div", "br", "li", "ul", "ol", "tr", "table", "section",
+             "article", "header", "footer", "blockquote", "pre",
+             "h1", "h2", "h3", "h4", "h5", "h6"}
+
+    def __init__(self):
+        super().__init__(convert_charrefs=True)
+        self.parts: list[str] = []
+        self._skipping = 0  # depth inside SKIP tags (they can nest)
+
+    def handle_starttag(self, tag, attrs):
+        if tag in self.SKIP:
+            self._skipping += 1
+        elif tag in self.BLOCK:
+            self.parts.append("\n")
+
+    def handle_endtag(self, tag):
+        if tag in self.SKIP:
+            self._skipping = max(0, self._skipping - 1)
+        elif tag in self.BLOCK:
+            self.parts.append("\n")
+
+    def handle_data(self, data):
+        if not self._skipping:
+            self.parts.append(data)
+
+
+def _html_to_text(body: str) -> str:
+    extractor = _TextExtractor()
+    extractor.feed(body)
+    text = "".join(extractor.parts)
+    # Collapse: runs of spaces/tabs -> one space, 2+ blank lines -> one.
+    text = re.sub(r"[ \t]+", " ", text)
+    lines = [line.strip() for line in text.splitlines()]
+    text = re.sub(r"\n{3,}", "\n\n", "\n".join(lines)).strip()
+    title = re.search(r"<title[^>]*>(.*?)</title>", body, re.I | re.S)
+    if title:
+        text = f"Title: {' '.join(title.group(1).split())}\n\n{text}"
+    return text
+
+
+def _head_tail(text: str, cap: int) -> str:
+    # Same ¾ + ¼ split as the loop's _truncate: the tail matters too.
+    if len(text) <= cap:
+        return text
+    head, tail = cap * 3 // 4, cap - cap * 3 // 4
+    dropped = len(text) - head - tail
+    return text[:head] + f"\n[... {dropped} chars truncated ...]\n" + text[-tail:]
+
+
+def web_fetch(url: str) -> str:
+    if not url.startswith(("http://", "https://")):
+        return f"ERROR: only http(s) URLs are supported, got {url!r}"
+    try:
+        resp = requests.get(
+            url, timeout=WEB_TIMEOUT, stream=True,
+            headers={"User-Agent": WEB_USER_AGENT},
+        )
+        try:
+            if resp.status_code >= 400:
+                return f"ERROR: HTTP {resp.status_code} {resp.reason} for {url}"
+            ctype = resp.headers.get("content-type", "").lower()
+            if ctype and not any(t in ctype for t in ("text", "html", "json", "xml")):
+                return f"ERROR: unsupported content type {ctype!r} (binary?)"
+            # Stream up to the byte cap so a giant file never fully lands here.
+            chunks, size = [], 0
+            for chunk in resp.iter_content(chunk_size=65536):
+                chunks.append(chunk)
+                size += len(chunk)
+                if size >= WEB_MAX_BYTES:
+                    break
+        finally:
+            resp.close()
+    except requests.RequestException as e:  # covers connect AND mid-stream drops
+        return f"ERROR: fetch failed: {e}"
+    body = b"".join(chunks).decode(resp.encoding or "utf-8", errors="replace")
+    sniff = body.lstrip()[:200].lower()
+    if "html" in ctype or sniff.startswith(("<!doctype", "<html")):
+        body = _html_to_text(body)
+    return _head_tail(body.strip(), WEB_MAX_CHARS) or "(empty page)"
+
+
 REGISTRY = {
     "read_file": read_file,
     "write_file": write_file,
@@ -101,9 +207,12 @@ REGISTRY = {
     "edit_file": edit_file,
     "grep": grep,
     "glob": glob,
+    "web_fetch": web_fetch,
 }
 
-NEEDS_PERMISSION = {"write_file", "run_shell", "edit_file"}  # mutating tools get the y/N gate
+# The y/N gate: the mutating three, plus web_fetch (read-only for the
+# machine, but it's network egress — it asks; note 19).
+NEEDS_PERMISSION = {"write_file", "run_shell", "edit_file", "web_fetch"}
 
 
 def _schema(name: str, desc: str, props: dict, required: list) -> dict:
@@ -173,5 +282,13 @@ SCHEMAS = [
             "path": {"type": "string", "description": "Base directory, default '.'"},
         },
         ["pattern"],
+    ),
+    _schema(
+        "web_fetch",
+        "Fetch a web page over HTTP GET and return its readable text (HTML tags "
+        "stripped, whitespace collapsed, output truncated). Use it to look up "
+        "documentation or online resources when a URL is known.",
+        {"url": {"type": "string", "description": "Full http(s) URL to fetch."}},
+        ["url"],
     ),
 ]

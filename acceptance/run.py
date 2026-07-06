@@ -110,6 +110,12 @@ def verify_agent_plan(final: str):
     return ok, "plan produced, handoff offered" if ok else f"no handoff line: {final[-120:]!r}"
 
 
+def verify_web_fetch(final: str):
+    # example.com's h1 is "Example Domain" — IANA-reserved, maximally stable.
+    ok = "example domain" in final.lower()
+    return ok, "heading fetched and reported" if ok else f"answer: {final[:100]!r}"
+
+
 TASKS = [
     {
         "id": "A-create-and-run",
@@ -174,6 +180,15 @@ TASKS = [
         "agent": "plan",
         "mode": "explore",
         "verify": verify_agent_plan,
+    },
+    {
+        # 2.13: the web_fetch tool answers from a real page (needs internet).
+        "id": "J-web-fetch",
+        "prompt": (
+            "Use the web_fetch tool to fetch https://example.com and tell me "
+            "the exact text of the page's main heading."
+        ),
+        "verify": verify_web_fetch,
     },
 ]
 

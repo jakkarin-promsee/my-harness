@@ -13,6 +13,7 @@ Run:
 """
 
 import argparse
+import difflib
 import json
 import os
 import sys
@@ -137,12 +138,58 @@ class StreamPrinter:
 # identity template + environment block + AGENTS.md project memory.
 
 
+MAX_DIFF_LINES = 40  # an unbounded render is the same disease as unbounded tool output
+
+GREEN, RED, CYAN = "\033[32m", "\033[31m", "\033[36m"
+
+
+def render_diff(name: str, arguments: dict) -> str | None:
+    """Unified-diff preview for the gate (note 19): edit_file diffs
+    old_string -> new_string; write_file diffs the target's current content
+    (missing file -> all additions) -> content. Returns None for any other
+    tool or an empty diff — the gate falls back to the JSON preview then.
+    Plain text on purpose: color is the printer's job, this stays testable."""
+    if name == "edit_file":
+        old = str(arguments.get("old_string", ""))
+        new = str(arguments.get("new_string", ""))
+    elif name == "write_file":
+        new = str(arguments.get("content", ""))
+        try:
+            with open(str(arguments.get("path", "")), encoding="utf-8", errors="replace") as f:
+                old = f.read()
+        except OSError:  # new or unreadable file -> everything is an addition
+            old = ""
+    else:
+        return None
+    path = arguments.get("path", "?")
+    lines = list(difflib.unified_diff(
+        old.splitlines(), new.splitlines(),
+        fromfile=f"a/{path}", tofile=f"b/{path}", lineterm="",
+    ))
+    if not lines:
+        return None
+    if len(lines) > MAX_DIFF_LINES:
+        lines = lines[:MAX_DIFF_LINES] + [f"... ({len(lines) - MAX_DIFF_LINES} more diff lines)"]
+    return "\n".join(lines)
+
+
+def _color_diff_line(line: str) -> str:
+    if line.startswith("+") and not line.startswith("+++"):
+        return f"{GREEN}{line}{RESET}"
+    if line.startswith("-") and not line.startswith("---"):
+        return f"{RED}{line}{RESET}"
+    if line.startswith("@@"):
+        return f"{CYAN}{line}{RESET}"
+    return line
+
+
 def make_gate(auto_approve: bool, modeset: ModeSet):
     """The permission gate, mode-aware (docs/notes/10 + 16):
     deny -> refuse flatly (-y can NEVER override it);
     allow -> run silently (writes: only inside cwd — decide_call's scoping
     rule); ask -> y/N prompt (-y upgrades to yes). Reads the ACTIVE mode's
-    policy per call, so /mode switches apply mid-session."""
+    policy per call, so /mode switches apply mid-session. Edits/writes render
+    a unified diff at the prompt instead of raw JSON args (note 19)."""
 
     def approve(name: str, arguments: dict) -> bool:
         decision = modeset.policy.decide_call(name, arguments)
@@ -151,11 +198,18 @@ def make_gate(auto_approve: bool, modeset: ModeSet):
             return False
         if decision == "allow" or auto_approve:
             return True
-        preview = json.dumps(arguments)
-        if len(preview) > 200:
-            preview = preview[:200] + "..."
+        diff = render_diff(name, arguments)
+        if diff is not None:
+            for line in diff.splitlines():
+                print(f"  {_color_diff_line(line)}")
+            prompt = f"  allow {name} on {arguments.get('path', '?')}? [y/N] "
+        else:
+            preview = json.dumps(arguments)
+            if len(preview) > 200:
+                preview = preview[:200] + "..."
+            prompt = f"  allow {name}({preview})? [y/N] "
         try:
-            answer = input(f"  allow {name}({preview})? [y/N] ")
+            answer = input(prompt)
         except EOFError:  # stdin closed (piped input ran out) -> safest is no
             return False
         return answer.strip().lower() == "y"

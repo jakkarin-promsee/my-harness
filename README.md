@@ -32,7 +32,7 @@ the trust (Stage 3).
 | Piece | What it is |
 |---|---|
 | **The loop** | One model call → run the tool calls it asks for → append results → repeat. The entire "agent" is [`src/harness/core/loop.py`](src/harness/core/loop.py). |
-| **Tools** | Read / edit files, search, run commands, and a **todo** tool — an external plan the model can't forget. |
+| **Tools** | Read / edit files, search, run commands, fetch web pages (`web_fetch`), and a **todo** tool — an external plan the model can't forget. Edits show a unified diff at the approval prompt. |
 | **Subagents** | Delegate a subtask to a fresh (or forked) child loop and get back just its result — optionally wearing a named role. |
 | **Providers** | Ollama (local, free — via its **native** `/api/chat`), Gemini (OpenAI-compat), and Anthropic (native), each behind its own adapter. The loop speaks one dialect; adapters translate both directions. |
 | **Visible mind** | Thinking and narration stream live to the terminal, so you watch it reason and talk instead of staring at a spinner. |
@@ -44,17 +44,17 @@ the trust (Stage 3).
 
 ## Status
 
-**Stage 2R (frontier parity) in progress — 2.10–2.12 shipped 2026-07-07.** The harness
-runs end-to-end on both providers with modes, roles, and reasoning control.
+**Stage 2R (frontier parity) in progress — 2.10–2.13 shipped 2026-07-07.** The harness
+runs end-to-end on both providers with modes, roles, reasoning control, and web fetch.
 
-- **116 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
-- **Exit gate 9/9 on both providers** (`uv run python acceptance/run.py <provider>`):
+- **129 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
+- **Exit gate 10/10 on both providers** (`uv run python acceptance/run.py <provider>`):
   local qwen3:4b-instruct and gemini-2.5-flash-lite — including "explore mode blocks a
-  write" and "the plan role proposes without touching anything".
+  write", "the plan role proposes without touching anything", and "answer from a fetched page".
 
-Remaining in 2R: web_fetch + diff preview (2.13), skills (2.14), the local speed lab
-(2.15), MCP as a stretch (2.16) — then **Stage 3** turns the three pains above into
-real features. Plans: [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/ROADMAP2.md](docs/ROADMAP2.md).
+Remaining in 2R: skills (2.14), the local speed lab (2.15), MCP as a stretch (2.16) —
+then **Stage 3** turns the three pains above into real features.
+Plans: [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/ROADMAP2.md](docs/ROADMAP2.md).
 
 ## Quickstart
 

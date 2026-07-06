@@ -7,7 +7,9 @@
 # This table IS the `build` mode (docs/notes/16-permission-modes.md).
 default = "ask"
 allow = ["read_file", "list_dir", "grep", "glob", "todo_write"]
-ask = ["write_file", "edit_file", "run_shell", "spawn_subagent"]
+# web_fetch asks in EVERY mode: read-only for the machine, but it's network
+# egress (docs/notes/19-web-and-diff.md).
+ask = ["write_file", "edit_file", "run_shell", "spawn_subagent", "web_fetch"]
 deny = []
 
 # Modes = named profiles over the same three-state policy. Switch with
@@ -21,13 +23,15 @@ default = "deny"
 
 [modes.explore]
 # "can see, can't touch" — reads run silently, everything else refused.
+# web_fetch still asks (reading the WEB isn't reading the machine).
 default = "deny"
 allow = ["read_file", "list_dir", "grep", "glob", "todo_write"]
+ask = ["web_fetch"]
 
 [modes.auto]
 # "coding" — writes/edits auto-approved inside cwd (outside: ask);
 # shell and subagents still confirm unless run with -y.
 default = "ask"
 allow = ["read_file", "list_dir", "grep", "glob", "todo_write", "write_file", "edit_file"]
-ask = ["run_shell", "spawn_subagent"]
+ask = ["run_shell", "spawn_subagent", "web_fetch"]
 deny = []
