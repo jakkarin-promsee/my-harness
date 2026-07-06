@@ -5,7 +5,7 @@
 
 ## 1. The local model can't pass the full acceptance suite
 
-**What happened:** `gemini-2.5-flash-lite` passes 7/7 (`uv run python acceptance/run.py gemini`). The local leg (`qwen3:4b`) is the weak link: in Stage 1 it already burned a whole 2,000-token budget *thinking* without ever reaching a tool call on the fizzbuzz task, and it runs 33% CPU-offloaded when Stardew shares the GPU. A detached local run was started (`acceptance-local.log` in the repo root — check it with `type acceptance-local.log`); expect partial failures.
+**What happened:** `gemini-2.5-flash-lite` passes 7/7 (`uv run python acceptance/run.py gemini`). The local leg (`qwen3:4b`, run 2026-07-06 with Stardew sharing the GPU) scored **5/7** — honestly better than feared: it passed find-fix-prove, grep, exact-edit, glob, and read-report. The two fails: **A** (create-and-run — its known thinking-death on write-from-scratch tasks; burned the token budget reasoning, never created the file) and **G** (subagent — returned an empty final answer). It also spent 13.6k output tokens vs Gemini's 0.75k for the same suite: thinking is expensive. Full log: `acceptance-local.log`.
 
 **Your options (pick one, tell me, I'll do the rest):**
 - **(a) Raise Ollama's context window** — see item 2; cheap, might help, won't fix slow thinking.

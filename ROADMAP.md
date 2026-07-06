@@ -105,7 +105,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 
 **Exit criteria (the eval gate):** a scripted acceptance suite (~5–10 small tasks, grown from the Stage 1 three) runs with one command and passes on two providers. Only then does Stage 3 open.
 
-> **Status 2026-07-06:** suite exists (`acceptance/run.py`, 7 tasks, reality-checking verifiers). `gemini-2.5-flash-lite`: **7/7 PASS**. Local `qwen3:4b` leg: pending/partial — the model, not the harness, is the bottleneck (docs/problem.md #1 holds the owner's three options). The gate stays formally open until the owner picks one.
+> **Status 2026-07-06:** suite exists (`acceptance/run.py`, 7 tasks, reality-checking verifiers). `gemini-2.5-flash-lite`: **7/7 PASS**. Local `qwen3:4b`: **5/7** (fails: A create-and-run — thinking-death on write-tasks; G subagent — empty final answer). The model, not the harness, is the local bottleneck (docs/problem.md #1 holds the owner's options). Gate formally open until the owner rules on what "passes on two providers" means for a 4 GB GPU.
 
 ---
 

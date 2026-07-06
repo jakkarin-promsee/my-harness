@@ -14,7 +14,7 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 
 ## Current status
 
-- **Stage: 2 (Copy the seniors) — features 2.0–2.8 ALL done (2026-07-06); 2.9 stretch skipped.** 56 offline tests (`uv run pytest -q`); exit-gate suite `uv run python acceptance/run.py <provider>`: **7/7 on gemini-2.5-flash-lite**, local qwen3:4b leg pending. **Read [docs/problem.md](docs/problem.md)** — owner decisions block the formal Stage-2 exit (local-model choice) and Anthropic live test. Model lessons: `llama3.2:3b` fabricates — unusable; `qwen3:4b` never gets `temperature: 0`; flash-lite throws 503s (retry handles) and occasional empty replies (nudge handles).
+- **Stage: 2 (Copy the seniors) — features 2.0–2.8 ALL done (2026-07-06); 2.9 stretch skipped.** 56 offline tests (`uv run pytest -q`); exit-gate suite `uv run python acceptance/run.py <provider>`: **7/7 on gemini-2.5-flash-lite**, **5/7 on local qwen3:4b** (fails A create-and-run + G subagent). **Read [docs/problem.md](docs/problem.md)** — owner decisions block the formal Stage-2 exit (local-model choice) and Anthropic live test. Model lessons: `llama3.2:3b` fabricates — unusable; `qwen3:4b` never gets `temperature: 0`; flash-lite throws 503s (retry handles) and occasional empty replies (nudge handles).
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
 ## Stack & environment

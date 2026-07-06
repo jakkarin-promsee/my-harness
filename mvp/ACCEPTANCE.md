@@ -51,4 +51,5 @@ re-runs the test, final answer reports all PASS. Reset the planted bug afterward
 > **Since Stage 2:** this suite grew into the scripted exit gate at `acceptance/run.py`
 > (7 tasks incl. grep/edit/glob/subagent, one command per provider). 2026-07-06:
 > **7/7 PASS on gemini-2.5-flash-lite** (empty-reply nudge + 5xx retry both fired
-> mid-suite and saved their tasks). Local qwen3:4b leg: docs/problem.md #1.
+> mid-suite and saved their tasks); **5/7 on local qwen3:4b** (fails A + G;
+> 13.6k thinking-heavy output tokens vs Gemini's 0.75k). docs/problem.md #1.
