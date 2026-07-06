@@ -9,6 +9,7 @@ Run:
     uv run python -m harness gemini      # Gemini flash-lite (uses $ credit)
     uv run python -m harness -y          # auto-approve gate (scripted runs)
     uv run python -m harness --mode explore   # read-only profile (note 16)
+    uv run python -m harness --agent plan     # role from agents/*.md (note 17)
 """
 
 import argparse
@@ -28,6 +29,7 @@ truststore.inject_into_ssl()  # this machine has TLS interception (see archive/l
 import requests
 from dotenv import load_dotenv
 
+from harness.core import agents as roles
 from harness.core import budget, commands
 from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
@@ -161,8 +163,13 @@ def parse_args(argv=None) -> argparse.Namespace:
     parser.add_argument("provider", nargs="?", default="ollama", choices=PROVIDERS)
     parser.add_argument("-y", "--yes", action="store_true", help="auto-approve the permission gate")
     parser.add_argument(
-        "--mode", default="build", metavar="NAME",
-        help="permission mode to start in (chat/explore/build/auto; see harness.toml)",
+        "--mode", default=None, metavar="NAME",
+        help="permission mode to start in (chat/explore/build/auto; see harness.toml). "
+             "Explicit --mode beats the agent's default",
+    )
+    parser.add_argument(
+        "--agent", default=None, metavar="NAME",
+        help="role to start as (build + agents/*.md at the cwd; see docs/notes/17)",
     )
     parser.add_argument(
         "--resume", nargs="?", const="latest", default=None, metavar="ID",
@@ -177,6 +184,19 @@ def main() -> None:
     auto_approve = args.yes
     provider_name = args.provider
     provider = PROVIDERS[provider_name]
+
+    # Roles (note 17): the code-level `build` built-in + agents/*.md at cwd.
+    # build has no file — its body IS prompts/system.md (one fact, one home).
+    agent_specs = {"build": roles.AgentSpec(
+        "build", prompt="", description="the default working agent", mode="build")}
+    agent_specs.update(roles.discover())
+    active_agent = args.agent or "build"
+    if active_agent not in agent_specs:
+        sys.exit(f"unknown agent {active_agent!r} - available: {', '.join(sorted(agent_specs))}")
+
+    def assemble(spec: roles.AgentSpec) -> str:
+        # Same 2.4 pipeline for every role: env block + AGENTS.md appended.
+        return build_system_prompt(template=spec.prompt or None)
 
     store = SessionStore()
     if args.sessions:
@@ -195,8 +215,15 @@ def main() -> None:
 
     # Top-level agent streams (watch it think); the subagent below gets its
     # own NON-streaming model so [sub]-prefixed lines never interleave with
-    # a half-printed delta stream.
-    model = make_model(provider, on_delta=StreamPrinter())
+    # a half-printed delta stream. A role may pin its own provider (aider's
+    # architect/editor economics) — primary only; children keep the session's.
+    primary_cfg = provider
+    if agent_specs[active_agent].model in PROVIDERS:
+        primary_cfg = PROVIDERS[agent_specs[active_agent].model]
+    elif agent_specs[active_agent].model:
+        print(f"  [!] agent {active_agent!r} pins unknown provider "
+              f"{agent_specs[active_agent].model!r} - using {provider_name}")
+    model = make_model(primary_cfg, on_delta=StreamPrinter())
     child_model = make_model(provider)
 
     # The token meter: non-negotiable from day 1 — this project exists
@@ -218,9 +245,12 @@ def main() -> None:
         store.append(session_id, message)
 
     modes = load_modes()
-    if args.mode not in modes:
-        sys.exit(f"unknown mode {args.mode!r} - available: {', '.join(sorted(modes))}")
-    modeset = ModeSet(modes, active=args.mode)
+    # Explicit --mode wins; else the agent's default; else build (note 17 —
+    # an agent only sets the DEFAULT, /mode still switches freely after).
+    mode_name = args.mode or agent_specs[active_agent].mode or "build"
+    if mode_name not in modes:
+        sys.exit(f"unknown mode {mode_name!r} - available: {', '.join(sorted(modes))}")
+    modeset = ModeSet(modes, active=mode_name)
     gate = make_gate(auto_approve, modeset)
 
     # The spawn tool closes over the LIVE messages list (rebound on /compact),
@@ -233,8 +263,10 @@ def main() -> None:
         approve=gate,
         emit=print,
         get_parent_messages=lambda: messages,
-        system_prompt=build_system_prompt(),
+        system_prompt=assemble(agent_specs[active_agent]),
         on_usage=on_usage,
+        # The registry that serves /agent serves fresh children too (note 17).
+        agent_prompts={n: assemble(s) for n, s in agent_specs.items()},
     )
     # The todo list is top-level only: children never see its schema, so they
     # never call it (docs/notes/13-todo-tool.md).
@@ -257,13 +289,22 @@ def main() -> None:
         on_message=persist,
     )
 
-    window = provider.get("context_window", 0)
-    print(f"researcher-harness | provider: {provider_name} | model: {provider['model']}"
-          f" | mode: {modeset.active}")
+    window = primary_cfg.get("context_window", 0)
+    print(f"researcher-harness | provider: {provider_name} | model: {primary_cfg['model']}"
+          f" | mode: {modeset.active} | agent: {active_agent}")
     print(f"session: {session_id} | type a task, 'exit' to quit")
     if not messages:  # fresh session gets the system prompt as message zero
-        messages = [{"role": "system", "content": build_system_prompt()}]
+        messages = [{"role": "system", "content": assemble(agent_specs[active_agent])}]
         persist(messages[0])
+    elif args.agent:
+        # --agent on a resumed session = an immediate role switch: swap the
+        # system message and migrate to a new file, so a later --resume
+        # replays the prompt that actually governed this run.
+        messages[0] = {"role": "system", "content": assemble(agent_specs[active_agent])}
+        session_id = store.new()
+        for m in messages:
+            persist(m)
+        print(f"  agent: {active_agent} | continued in session {session_id}")
     while True:
         try:
             user = input("\nyou> ").strip()
@@ -277,7 +318,37 @@ def main() -> None:
         # ---- slash commands: builtins first, then template commands ----
         if user == "/help":
             templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
-            print("  builtins: /tokens /compact /mode /help | templates (commands/*.md): " + templates)
+            print("  builtins: /tokens /compact /mode /agent /help | templates (commands/*.md): " + templates)
+            continue
+        if user == "/agent" or user.startswith("/agent "):
+            name = user.removeprefix("/agent").strip()
+            if not name:
+                for n, s in sorted(agent_specs.items()):
+                    mark = "*" if n == active_agent else " "
+                    print(f"  {mark} {n:<10} {s.description}")
+                continue
+            if name not in agent_specs:
+                print(f"  unknown agent {name!r} (available: {', '.join(sorted(agent_specs))})")
+                continue
+            sw = agent_specs[name]
+            messages[0] = {"role": "system", "content": assemble(sw)}
+            if sw.mode and sw.mode in modeset.modes:
+                modeset.switch(sw.mode)
+                agent.schemas = schemas if modeset.send_tools else []
+            elif sw.mode:
+                print(f"  [!] agent {name!r} names unknown mode {sw.mode!r} - keeping {modeset.active}")
+            cfg = PROVIDERS.get(sw.model, provider) if sw.model else provider
+            if sw.model and sw.model not in PROVIDERS:
+                print(f"  [!] agent {name!r} pins unknown provider {sw.model!r} - keeping {provider_name}")
+            agent.model = make_model(cfg, on_delta=StreamPrinter())
+            window = cfg.get("context_window", 0)
+            active_agent = name
+            # /compact precedent: memory carries the history over; the on-disk
+            # transcript stays append-only, so continue in a NEW session file.
+            session_id = store.new()
+            for m in messages:
+                persist(m)
+            print(f"  agent: {name} | mode: {modeset.active} | model: {cfg['model']} | session: {session_id}")
             continue
         if user == "/mode" or user.startswith("/mode "):
             name = user.removeprefix("/mode").strip()

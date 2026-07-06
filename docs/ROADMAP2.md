@@ -183,7 +183,7 @@ One command, two providers, like Stage 2:
 | Feature | Status |
 |---|---|
 | 2.10 Permission modes | **done** 2026-07-07 — note 16; gate 8/8 local qwen3 (new task H: explore blocks the write, agent reports it) |
-| 2.11 Agents (roles) | not started |
+| 2.11 Agents (roles) | **done** 2026-07-07 — note 17; gate 9/9 local (new task I: plan role investigates read-only, offers the `/agent build` handoff) |
 | 2.12 Reasoning control | not started |
 | 2.13 web_fetch + diff gate | not started |
 | 2.14 Skills | not started |

@@ -109,3 +109,45 @@ def test_child_without_text_answer_reports_gracefully():
         get_parent_messages=lambda: [], system_prompt="S",
     )
     assert "without a final text answer" in spawn_fn("loop forever")
+
+
+# ---- 2.11: named roles (agent=) --------------------------------------------
+
+def make_spawn_with_roles(child, agent_prompts):
+    return make_spawn_tool(
+        model=child, registry={}, schemas=[], needs_permission=set(),
+        approve=lambda n, a: True, emit=SILENT,
+        get_parent_messages=lambda: [{"role": "system", "content": "PARENT SYS"}],
+        system_prompt="CHILD SYS", agent_prompts=agent_prompts,
+    )
+
+
+def test_named_role_gives_fresh_child_that_prompt():
+    child = RecordingModel([text_reply("planned")])
+    spawn_fn, schema = make_spawn_with_roles(child, {"plan": "PLAN SYS"})
+    # roles present -> the schema advertises the agent parameter
+    assert "agent" in schema["function"]["parameters"]["properties"]
+    result = spawn_fn("plan it", context="fresh", agent="plan")
+    assert child.seen[0][0]["content"] == "PLAN SYS"   # not CHILD SYS
+    assert result == "planned"
+
+
+def test_no_roles_means_no_agent_param_in_schema():
+    spawn_fn, schema = make_spawn_tool(
+        model=FakeModel([]), registry={}, schemas=[], needs_permission=set(),
+        approve=lambda n, a: True, emit=SILENT,
+        get_parent_messages=lambda: [], system_prompt="S",
+    )
+    assert "agent" not in schema["function"]["parameters"]["properties"]
+
+
+def test_unknown_role_is_error_text_not_crash():
+    spawn_fn, _ = make_spawn_with_roles(FakeModel([]), {"plan": "P"})
+    out = spawn_fn("x", agent="ghost")
+    assert out.startswith("ERROR") and "plan" in out
+
+
+def test_role_plus_fork_is_error_text():
+    spawn_fn, _ = make_spawn_with_roles(FakeModel([]), {"plan": "P"})
+    out = spawn_fn("x", context="fork", agent="plan")
+    assert out.startswith("ERROR") and "fresh" in out

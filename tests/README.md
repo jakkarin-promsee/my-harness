@@ -19,7 +19,8 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 | `test_subagent.py` | fresh vs fork, child-tools-minus-spawn, only-final-text-returns |
 | `test_openai_compat.py` / `test_streaming.py` | the OpenAI adapter + SSE deltas |
 | `test_anthropic.py` | the six-way translation round-trip |
-| `test_permissions.py` | allow/ask/deny + deny > ask > allow |
+| `test_permissions.py` | allow/ask/deny + deny > ask > allow; modes + the cwd scoping rule (2.10) |
+| `test_agents.py` | role frontmatter parsing + discovery (2.11) |
 | `test_session.py` | JSONL append / load / resume |
 | `test_context.py` | system-prompt assembly |
 | `test_budget.py` | token estimate + `/compact` |

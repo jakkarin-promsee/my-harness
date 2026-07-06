@@ -37,6 +37,13 @@ SPAWN_SCHEMA = {
     },
 }
 
+# Added to the schema only when roles exist (note 17): the registry that
+# serves /agent serves subagents too — opencode's unification.
+AGENT_PARAM_DESC = (
+    "Optional role for a fresh child: {names}. The child gets that agent's "
+    "system prompt instead of yours."
+)
+
 
 def make_spawn_tool(
     model,
@@ -48,6 +55,7 @@ def make_spawn_tool(
     get_parent_messages,  # callable -> the LIVE parent list (it gets rebound on /compact)
     system_prompt: str,
     on_usage=None,
+    agent_prompts: dict | None = None,  # {role name: assembled system prompt} (note 17)
 ):
     # The child gets the same tools MINUS spawn itself: no recursion at Stage 2.
     # Actively stripped (not just "don't pass it") so the invariant can't be
@@ -55,12 +63,26 @@ def make_spawn_tool(
     child_registry = {k: v for k, v in registry.items() if k != "spawn_subagent"}
     child_schemas = [s for s in schemas if s["function"]["name"] != "spawn_subagent"]
 
-    def spawn_subagent(prompt: str, context: str = "fresh") -> str:
+    schema = copy.deepcopy(SPAWN_SCHEMA)
+    if agent_prompts:
+        schema["function"]["parameters"]["properties"]["agent"] = {
+            "type": "string",
+            "description": AGENT_PARAM_DESC.format(names=", ".join(sorted(agent_prompts))),
+        }
+
+    def spawn_subagent(prompt: str, context: str = "fresh", agent: str = "") -> str:
+        if agent and context == "fork":
+            # Ambiguity is an error the model can fix (the edit_file lesson):
+            # a fork inherits this conversation's identity by definition.
+            return "ERROR: agent= only works with context='fresh' - a fork inherits this conversation as-is."
+        if agent and agent not in (agent_prompts or {}):
+            return f"ERROR: unknown agent {agent!r} (available: {', '.join(sorted(agent_prompts or {}))})"
         if context == "fork":
             # Deep copy: the child must never mutate parent history.
             child_messages = copy.deepcopy(get_parent_messages())
         else:
-            child_messages = [{"role": "system", "content": system_prompt}]
+            child_prompt = agent_prompts[agent] if agent else system_prompt
+            child_messages = [{"role": "system", "content": child_prompt}]
         child_messages.append({"role": "user", "content": prompt})
 
         child = Agent(
@@ -85,4 +107,4 @@ def make_spawn_tool(
         )
         return final or "(subagent finished without a final text answer)"
 
-    return spawn_subagent, SPAWN_SCHEMA
+    return spawn_subagent, schema

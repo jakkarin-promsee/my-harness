@@ -10,6 +10,7 @@ The heart of the harness plus the bookkeeping that keeps it alive. Each module's
 | `session.py` | One JSONL file per session, one line per message the moment it exists. Resume = replay the lines. | 05 |
 | `budget.py` | Token estimate + the standard `/compact` (summarize-and-replace). Built as the baseline Stage 3.1's surgical ops must measurably beat. | ROADMAP 3.1 |
 | `commands.py` | Slash commands = markdown files: `/name args` → `commands/name.md` with `{{args}}` substituted. | 09 |
+| `agents.py` | Roles = markdown files: `agents/*.md` frontmatter (description/model/mode/think) + body = system prompt. `build` is the code-level built-in. | 17 |
 | `subagent.py` | Spawn a child loop (`fresh` clean slate \| `fork` copy of parent). Only the child's **final text** returns to the parent — its transcript never enters the parent window. | 08 |
 
 **Changing the loop?** It's the boring core — keep it pure and injected, and drive every path from `tests/test_loop.py` (zero tokens). The invariants you must not break are in [`../CLAUDE.md`](../CLAUDE.md).

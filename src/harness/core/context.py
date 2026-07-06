@@ -38,10 +38,19 @@ def build_env_block(cwd: str) -> str:
     return "\n".join(lines)
 
 
-def build_system_prompt(cwd: str | None = None) -> str:
+def build_system_prompt(cwd: str | None = None, template: str | None = None) -> str:
+    """Assemble the system prompt. `template` overrides prompts/system.md —
+    that's how an agent's markdown body (note 17) rides the same pipeline.
+    replace(), not format(): an agent prompt containing {braces} must not
+    crash the assembly. A template without the placeholder gets the env
+    block appended, so plain prose files work unmodified."""
     cwd = cwd or os.getcwd()
-    template = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
-    prompt = template.format(env_block=build_env_block(cwd))
+    if template is None:
+        template = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
+    if "{env_block}" in template:
+        prompt = template.replace("{env_block}", build_env_block(cwd))
+    else:
+        prompt = template.rstrip() + "\n\nEnvironment:\n" + build_env_block(cwd)
     # Project memory: the file the USER owns. Cross-tool convention: AGENTS.md.
     agents_md = Path(cwd) / "AGENTS.md"
     if agents_md.exists():

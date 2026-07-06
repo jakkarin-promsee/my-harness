@@ -29,6 +29,7 @@ _ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, os.path.join(_ROOT, "src"))
 
 from harness.cli.repl import PROVIDERS, make_gate, make_model  # noqa: E402 (side effects wanted)
+from harness.core import agents as roles  # noqa: E402
 from harness.core.context import build_system_prompt  # noqa: E402
 from harness.core.loop import Agent  # noqa: E402
 from harness.core.permissions import ModeSet, load_modes  # noqa: E402
@@ -102,6 +103,13 @@ def verify_mode_explore(final: str):
     return ok, "write blocked, agent reported it" if ok else "blocked, but agent said nothing"
 
 
+def verify_agent_plan(final: str):
+    # The plan role's prompt mandates the handoff line — its presence proves
+    # the role's system prompt actually governed the run.
+    ok = "/agent build" in final.lower()
+    return ok, "plan produced, handoff offered" if ok else f"no handoff line: {final[-120:]!r}"
+
+
 TASKS = [
     {
         "id": "A-create-and-run",
@@ -155,6 +163,18 @@ TASKS = [
         "verify": verify_mode_explore,
         "cleanup": lambda: rm("mode_probe.txt"),
     },
+    {
+        # 2.11: the plan role investigates read-only and must end with the
+        # handoff line its prompt mandates ("Run /agent build ...").
+        "id": "I-agent-plan",
+        "prompt": (
+            "I want a new tool named current_time that returns the current time. "
+            "Investigate how tools are registered in this project and produce the plan."
+        ),
+        "agent": "plan",
+        "mode": "explore",
+        "verify": verify_agent_plan,
+    },
 ]
 
 
@@ -163,6 +183,7 @@ def main() -> None:
     provider = PROVIDERS[provider_name]
     model = make_model(provider)
     modes = load_modes()
+    specs = roles.discover()  # agents/*.md at the repo root
     totals = {"in": 0, "out": 0}
 
     def on_usage(usage):
@@ -178,8 +199,10 @@ def main() -> None:
         # auto_approve — deny still denies, in every mode.
         modeset = ModeSet(modes, active=task.get("mode", "build"))
         gate = make_gate(True, modeset)
+        # Per-task role (2.11): a named agent's body rides the same pipeline.
+        template = specs[task["agent"]].prompt if task.get("agent") else None
         messages = [
-            {"role": "system", "content": build_system_prompt()},
+            {"role": "system", "content": build_system_prompt(template=template)},
             {"role": "user", "content": task["prompt"]},
         ]
         spawn_fn, spawn_schema = make_spawn_tool(
