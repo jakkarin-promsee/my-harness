@@ -18,6 +18,13 @@ class SessionStore:
     def new(self) -> str:
         self.dir.mkdir(parents=True, exist_ok=True)
         session_id = time.strftime("%Y%m%d-%H%M%S")
+        # Second-resolution stamps collide (two /agent switches in one
+        # second, measured 2026-07-07) — suffix rather than silently
+        # appending into the earlier session's file.
+        base, n = session_id, 2
+        while self._path(session_id).exists():
+            session_id = f"{base}-{n}"
+            n += 1
         # Touch the file so `latest()` sees it even before the first message.
         self._path(session_id).touch()
         return session_id
@@ -31,13 +38,15 @@ class SessionStore:
         return [json.loads(line) for line in lines if line.strip()]
 
     def latest(self) -> str | None:
-        files = sorted(self.dir.glob("*.jsonl")) if self.dir.exists() else []
+        # Sort by STEM: with the full filename, "...-2.jsonl" sorts before
+        # "....jsonl" ("-" < "."), and latest() would pick the older file.
+        files = sorted(self.dir.glob("*.jsonl"), key=lambda p: p.stem) if self.dir.exists() else []
         return files[-1].stem if files else None
 
     def listing(self) -> list[str]:
         """One human line per session: id, message count, first user words."""
         rows = []
-        for fp in sorted(self.dir.glob("*.jsonl")) if self.dir.exists() else []:
+        for fp in sorted(self.dir.glob("*.jsonl"), key=lambda p: p.stem) if self.dir.exists() else []:
             messages = self.load(fp.stem)
             first_user = next(
                 (m["content"] for m in messages if m["role"] == "user"), "(empty)"

@@ -19,6 +19,16 @@ def test_append_then_load_roundtrips(tmp_path):
     assert store.load(sid) == msgs
 
 
+def test_same_second_sessions_get_distinct_ids(tmp_path):
+    # Two /agent switches (or /compacts) inside one second must not share a
+    # file - the second would silently append into the first (2026-07-07).
+    store = SessionStore(str(tmp_path / "s"))
+    ids = {store.new() for _ in range(3)}
+    assert len(ids) == 3
+    later = store.new()
+    assert store.latest() == later  # suffixed ids still sort as newest
+
+
 def test_latest_and_listing(tmp_path):
     store = SessionStore(str(tmp_path / "s"))
     assert store.latest() is None
