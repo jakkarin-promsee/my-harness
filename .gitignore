@@ -22,4 +22,4 @@ tempCodeRunnerFile.py
 
 # harness runtime data
 sessions/
-acceptance-local*.log
+acceptance-*.log

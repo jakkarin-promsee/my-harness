@@ -14,7 +14,7 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 
 ## Current status
 
-- **Stage: 2 (Copy the seniors) — features 2.0–2.8 ALL done (2026-07-06); 2.9 stretch skipped.** 56 offline tests (`uv run pytest -q`); exit-gate suite `uv run python acceptance/run.py <provider>`: **7/7 on gemini-2.5-flash-lite**, **5/7 on local qwen3:4b** (fails A create-and-run + G subagent). **Read [docs/problem.md](docs/problem.md)** — owner decisions block the formal Stage-2 exit (local-model choice) and Anthropic live test. Model lessons: `llama3.2:3b` fabricates — unusable; `qwen3:4b` never gets `temperature: 0`; flash-lite throws 503s (retry handles) and occasional empty replies (nudge handles).
+- **Stage: 2 COMPLETE (2026-07-07) — exit gate 7/7 on BOTH providers; Stage 3 unblocked.** 78 offline tests (`uv run pytest -q`); exit gate `uv run python acceptance/run.py <provider>`: **7/7 gemini-2.5-flash-lite** (1,083 out-tokens), **7/7 local qwen3:4b-instruct** (1,460 out-tokens). 2.9 shipped 2026-07-07: visible mind (narration preambles + dim thinking display + length-nudge), SSE streaming, todo tool (notes 11–13). Local workhorse: `qwen3:4b-instruct` (non-thinking 2507 refresh, set in `.env`) with `OLLAMA_CONTEXT_LENGTH=8192` machine-wide. Model lessons: `llama3.2:3b` fabricates — unusable; thinking `qwen3:4b` burns 10× the output tokens and dies at length limits — use the instruct variant; never `temperature: 0` on qwen3; flash-lite throws 503s (retry handles) and empty replies (nudge handles). [docs/problem.md](docs/problem.md): only the deliberate Anthropic live test remains open.
 - Update this line whenever a stage milestone completes. This is the first thing a fresh session should check.
 
 ## Stack & environment
@@ -22,10 +22,10 @@ Read [ROADMAP.md](ROADMAP.md) before doing anything. It holds the full story, th
 | Thing | Choice | Notes |
 |---|---|---|
 | Language | Python 3.11+ | Managed with `uv` |
-| Primary dev model | Local via Ollama | RTX 3050 Ti Laptop, 4 GB VRAM → 3–4B tool-calling models (candidates: `qwen3:4b`, small Gemma; Stage 0 tests which one actually tool-calls reliably) |
+| Primary dev model | Local via Ollama | RTX 3050 Ti Laptop, 4 GB VRAM → `qwen3:4b-instruct` (chosen 2026-07-07: 7/7 exit gate, non-thinking, ~1.5k out-tokens per suite). Window: `OLLAMA_CONTEXT_LENGTH=8192` machine-wide + `.env` |
 | Fallback dev model | Gemini API (flash / flash-lite) | Via its OpenAI-compatible endpoint. ~$19 of credit total — guard it |
 | Wire protocol | OpenAI-compatible chat completions | Both Ollama (`http://localhost:11434/v1`) and Gemini speak it → provider swap is one `base_url` change |
-| Anthropic API | Not yet | `ANTHROPIC_API_KEY` must stay **unset** until Stage 2.1 adds a native adapter intentionally (a stray key silently bills pay-as-you-go) |
+| Anthropic API | Adapter built (2.1), live-untested | `ANTHROPIC_API_KEY` stays **unset** until the owner sets it deliberately for a live smoke test (a stray key silently bills pay-as-you-go) — see docs/problem.md |
 
 **Budget rule:** debug agent-loop logic on the local model (an infinite-loop bug burns $0 locally); validate response *quality* on Gemini. Never point a possibly-buggy loop at a paid endpoint.
 

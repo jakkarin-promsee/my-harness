@@ -101,11 +101,15 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 - [x] **2.6 Subagents** *(done 2026-07-06; note 08)*: `spawn_subagent(prompt, context="fresh"|"fork")`; child = plain Agent, no recursion, only final text returns to the parent.
 - [x] **2.7 Slash commands + template library** *(done 2026-07-06; note 09)*: `commands/*.md` as `/name` with `{{args}}`; builtins first. (Direct ancestor of Stage 3.2.)
 - [x] **2.8 Permissions v2** *(done 2026-07-06; note 10)*: `harness.toml` allow/ask/deny per tool, fail-closed precedence, `-y` never overrides deny.
-- [ ] **2.9 Stretch (optional, in any order):** streaming tool output; pre/post-tool hooks; MCP client; Anthropic prompt caching (`cache_control` breakpoints + measured hit rates). *(Consciously skipped in the 2026-07-06 run — none blocks Stage 3; caching becomes relevant when the Anthropic key arrives.)*
+- [x] **2.9 Stretch — the "feels like Claude Code" set** *(done 2026-07-07; notes 11–13; picked up after the owner set direction: interleaved narration + thinking visibility + local smartness before Stage 3)*:
+  - **2.9a Visible mind** (note 11): preamble content emitted *before* tool calls run (was silently swallowed); thinking (`reasoning` / `reasoning_content` / `<think>` dialects) shown dim and stripped from history — a per-turn scratchpad, never re-sent or persisted; `finish_reason: length` gets one "act, don't think out loud" nudge (`/no_think` soft switch) instead of killing the turn; `max_tokens` is per-provider config (ollama 4096 — thinking headroom).
+  - **2.9b Streaming** (note 12): SSE deltas — thinking and answer stream live token by token; tool calls assemble by `index` and only execute complete; `normalize_reply` stays the single normalization path streamed or not; subagents use a non-streaming model instance.
+  - **2.9c Todo tool** (note 13): TodoWrite copied — external plan with replace semantics, `[ ]/[>]/[x]` checklist rendered for the human and returned to the model (the steering effect).
+  - *Still consciously skipped:* pre/post-tool hooks; MCP client; Anthropic prompt caching (becomes relevant when the Anthropic key arrives).
 
 **Exit criteria (the eval gate):** a scripted acceptance suite (~5–10 small tasks, grown from the Stage 1 three) runs with one command and passes on two providers. Only then does Stage 3 open.
 
-> **Status 2026-07-06:** suite exists (`acceptance/run.py`, 7 tasks, reality-checking verifiers). `gemini-2.5-flash-lite`: **7/7 PASS**. Local `qwen3:4b`: **5/7** (fails: A create-and-run — thinking-death on write-tasks; G subagent — empty final answer). The model, not the harness, is the local bottleneck (docs/problem.md #1 holds the owner's options). Gate formally open until the owner rules on what "passes on two providers" means for a 4 GB GPU.
+> **Status 2026-07-07: GATE PASSED — 7/7 on both providers.** Local `qwen3:4b-instruct` (the non-thinking 2507 refresh, window raised to 8192): **7/7**, 1,460 output tokens (old thinking qwen3: 5/7 at 13,614 — 10× the cost for a worse score). What flipped it: the model swap + the 2.9a visible-mind fixes (length-nudge, thinking stripped from history) + two of our own bugs found by the bake-off (cp1252 stdout crash on a ✓ character; case-sensitive fizzbuzz verifier). `gemini-2.5-flash-lite`: 7/7 re-confirmed after 2.9. Lesson worth keeping: when a local model "fails", suspect the harness and the verifier first — both local failures on 2026-07-07 were ours.
 
 ---
 
@@ -171,7 +175,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 |---|---|---|---|
 | 0 — Recon | **done** — labs pass on Ollama + Gemini (owner-verified) | 2026-07-06 | 2026-07-06 |
 | 1 — MVP | **done** — acceptance green on Gemini (B also local); walkthrough folded into Stage 2 reviews | 2026-07-06 | 2026-07-06 |
-| 2 — Copy the seniors | features 2.0–2.8 **done** (2.9 stretch skipped); exit gate: 7/7 on Gemini, local leg pending owner decision (problem.md #1) | 2026-07-06 | — |
-| 3 — Make it mine | not started | — | — |
+| 2 — Copy the seniors | **done** — features 2.0–2.9 complete; exit gate 7/7 on gemini-2.5-flash-lite AND local qwen3:4b-instruct | 2026-07-06 | 2026-07-07 |
+| 3 — Make it mine | unblocked, not started | — | — |
 
 *(Update this table and the "Current status" line in [CLAUDE.md](CLAUDE.md) as milestones complete.)*
