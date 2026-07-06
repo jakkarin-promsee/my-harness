@@ -22,6 +22,7 @@ truststore.inject_into_ssl()  # this machine has TLS interception (see labs/02)
 import requests
 from dotenv import load_dotenv
 
+from harness.core.context import build_system_prompt
 from harness.core.loop import Agent
 from harness.core.session import SessionStore
 from harness.providers.anthropic import AnthropicModel
@@ -65,13 +66,8 @@ def make_model(cfg: dict):
         return AnthropicModel(cfg["key"], cfg["model"])
     return OpenAICompatModel(cfg["url"], cfg["key"], cfg["model"])
 
-SYSTEM_PROMPT = f"""You are a coding agent running in a terminal on Windows.
-Working directory: {os.getcwd()}
-
-Rules:
-- Use the tools to inspect and change files; never guess file contents.
-- Run Python files with: uv run python <path>
-- Keep answers short. When the task is done, state the result plainly."""
+# The system prompt is ASSEMBLED, not hardcoded — see core/context.py:
+# identity template + environment block + AGENTS.md project memory.
 
 
 def make_gate(auto_approve: bool):
@@ -158,7 +154,7 @@ def main() -> None:
     print(f"researcher-harness | provider: {provider_name} | model: {provider['model']}")
     print(f"session: {session_id} | type a task, 'exit' to quit")
     if not messages:  # fresh session gets the system prompt as message zero
-        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages = [{"role": "system", "content": build_system_prompt()}]
         persist(messages[0])
     while True:
         try:
