@@ -28,3 +28,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [19-web-and-diff](19-web-and-diff.md) | 2.13: `web_fetch` (stdlib HTML→text, two-belt truncation) + the unified-diff `ask` prompt |
 | [20-skills](20-skills.md) | 2.14: `skills/*/SKILL.md` — one description line at startup, body on `read_file` (progressive disclosure for free) |
 | [21-local-lab](21-local-lab.md) | 2.15 lab log: FA + q8_0 KV = +13 % speed, not more context (weights overflow the card); bake-off — incumbent holds |
+| [22-failure-museum](22-failure-museum.md) | 2.17: real failed tasks from `sessions/` frozen as fixtures (one hold-out); the flash wire probes — `"none"` works, thinking is derivable as `total−prompt−completion` |

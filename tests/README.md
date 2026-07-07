@@ -27,5 +27,6 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 | `test_session.py` | JSONL append / load / resume |
 | `test_context.py` | system-prompt assembly |
 | `test_budget.py` | token estimate + `/compact` |
+| `test_museum.py` | the 2.17 museum verifiers — each must catch the live failure it was built from (the frozen guidebook exhibit must FAIL) |
 
 **Adding a test:** mirror the module name (`test_<module>.py`), script a `FakeModel` for whatever loop path you need, and assert on what happens to `messages`. No network, ever. The live end-to-end checks live in `acceptance/`, not here.

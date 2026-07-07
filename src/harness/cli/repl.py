@@ -63,6 +63,9 @@ PROVIDERS = {
         # see docs/notes/11-visible-mind.md).
         "max_tokens": 4096,
     },
+    # Two Gemini lanes since 2.17 (ROADMAP3 §4): "gemini" = flash-lite, the
+    # cheap REGRESSION lane (before/after-every-feature runs); "gemini-flash"
+    # = the QUALITY lane (museum baselines, labs, flash-facing acceptance).
     "gemini": {
         "kind": "openai",
         "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
@@ -70,6 +73,17 @@ PROVIDERS = {
         "model": "gemini-2.5-flash-lite",
         "context_window": 1_048_576,
         "max_tokens": 2000,
+    },
+    "gemini-flash": {
+        "kind": "openai",
+        "url": "https://generativelanguage.googleapis.com/v1beta/openai/chat/completions",
+        "key": os.getenv("GEMINI_API_KEY", ""),
+        "model": "gemini-2.5-flash",
+        "context_window": 1_048_576,
+        # Flash THINKS BY DEFAULT and its thinking bills as completion tokens
+        # (note 22's probe); 2000 would be thinking-death — the note-11
+        # lesson, paid edition. 2.19 wires the off-switch.
+        "max_tokens": 8192,
     },
     "anthropic": {
         "kind": "anthropic",

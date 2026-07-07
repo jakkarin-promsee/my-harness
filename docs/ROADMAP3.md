@@ -217,7 +217,7 @@ An adversarial subagent reviewed v2 against the constitution, both prior roadmap
 
 | Feature | Status |
 |---|---|
-| 2.17 Failure museum + wiring baseline | not started — **needs the owner**: 3–5 real failing tasks from live sessions (span simple → long multi-step) |
+| 2.17 Failure museum + wiring baseline | **done** 2026-07-08 — note 22. Museum mined from `sessions/` (47 transcripts): M1 page-eyes, M2 orient-summary, M3 guidebook, M4 hold-out (frozen, zero runs). Probes: `reasoning_effort:"none"` WORKS on flash; no usage split but thinking = `total−prompt−completion` (exact). Two lanes wired (`gemini-flash` quality / `gemini` regression). Baseline N=3: flash & local both 1/3 majority-pass (M1 ✅, M2+M3 ❌) — the gate's blind spot, now measured. Runner: `--suite/--n/--task/--include-holdout` + thinking/$ meter |
 | 2.18a Backbone (system prompt v2) | not started |
 | 2.18b Ladder (tiers) | not started |
 | 2.19 Voice & effort | not started — probes land in 2.17 |
