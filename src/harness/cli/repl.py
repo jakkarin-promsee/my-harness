@@ -94,6 +94,11 @@ PROVIDERS = {
         "max_tokens": 8192,
         "tier": "standard",
         "voice": "explain",
+        # Pinned by the 2.20 lab (note 26): thinking bought NOTHING on the
+        # grid (M1 flat 3/3 everywhere; M3 0-1/3 everywhere; plan-shaped I
+        # 3/3 at off, 2.5x cheaper than medium) - and by default it bills
+        # invisibly. off = reasoning_effort "none" on this wire (note 25).
+        "think": "off",
     },
     "anthropic": {
         "kind": "anthropic",
@@ -321,8 +326,11 @@ def main() -> None:
     if voice not in VOICES:
         sys.exit(f"unknown voice {voice!r} - available: {', '.join(VOICES)}")
     model = make_model(primary_cfg, on_delta=StreamPrinter())
-    model.think = agent_specs[active_agent].think  # role default; /think overrides
+    # Reasoning default: role frontmatter beats the provider's 2.20 pin;
+    # /think still overrides both at runtime.
+    model.think = agent_specs[active_agent].think or primary_cfg.get("think")
     child_model = make_model(provider)
+    child_model.think = provider.get("think")
 
     # The token meter: non-negotiable from day 1 — this project exists
     # because of token economics. Watch prompt_tokens climb call after call.
@@ -510,7 +518,8 @@ def main() -> None:
             if sw.model and sw.model not in PROVIDERS:
                 print(f"  [!] agent {name!r} pins unknown provider {sw.model!r} - keeping {provider_name}")
             agent.model = make_model(cfg, on_delta=StreamPrinter())
-            agent.model.think = sw.think  # the role's default; /think overrides
+            # Role default beats provider pin; /think overrides both.
+            agent.model.think = sw.think or cfg.get("think")
             window = cfg.get("context_window", 0)
             active_agent = name
             # /compact precedent: memory carries the history over; the on-disk

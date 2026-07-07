@@ -32,3 +32,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [23-backbone](23-backbone.md) | 2.18a: system prompt v2 — six tagged sections every role extends (`backbone: false` opts out); "keep answers short" dies; local museum M2 flipped 0/3→3/3 |
 | [24-prompt-ladder](24-prompt-ladder.md) | 2.18b: MICRO/COMPACT/STANDARD/FULL over one file — same-name sections replace; measured 264/580/660/854; `/prompt`; spawn-time assembly |
 | [25-voice-and-effort](25-voice-and-effort.md) | 2.19: `/voice quiet\|normal\|explain` (Gemini default = explain — flipped M2 on flash, ×2.3 output) + `/think off` → `reasoning_effort:"none"` (0 think proven) + the derived think meter |
+| [26-thinking-curve](26-thinking-curve.md) | 2.20 lab: H1 ✓ (thinking = waste on simple), H2 ✗ (budget never moved the hard task — it's an information problem; high explored LESS), H3 ✓ early (voice). Pin: flash `think: off` for every role |

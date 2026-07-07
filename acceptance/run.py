@@ -376,8 +376,9 @@ def main() -> None:
 
     tier = provider.get("tier", "standard")
     voice = args.voice or provider.get("voice", "normal")
-    if args.think:
-        model.think = args.think  # rides every call this run (2.19/2.20)
+    think = args.think or provider.get("think")  # CLI beats the 2.20 pin
+    if think:
+        model.think = think
     print(f"=== acceptance | provider: {args.provider} | model: {provider['model']}"
           f" | suite: {args.suite} | n={args.n} | tier: {tier} | voice: {voice}"
           + (f" | think: {args.think}" if args.think else "") + " ===")
