@@ -1,5 +1,7 @@
 # ROADMAP2 — Stage 2R: Copy the seniors, round two (frontier parity)
 
+> **STAGE CLOSED 2026-07-08.** Exit gate 11/11 on BOTH providers (local `qwen3:4b-instruct` + `gemini-2.5-flash-lite`), 136 offline tests green, §2 gap table re-scored below — every ❌ is now ✅ or consciously-deferred-with-reason. 2.16 MCP **deferred** by owner decision 2026-07-08 (recorded in [ROADMAP3.md](ROADMAP3.md) §0: *"MCP server or search engine is just external skill. The problem now is its core"* — rolls into a future round together with hooks). **[ROADMAP3.md](ROADMAP3.md) (Stage 2C — the cognitive core) governs next.**
+>
 > **v2 — approved 2026-07-07.** First drafted after a research pass over Claude Code, opencode, aider, Codex CLI and the local-model landscape; revised the same day after a second, source-verified pass (live docs fetched — §2's claims carry their receipts in §7). Slots **between** ROADMAP.md's Stage 2 (closed, gate 7/7) and Stage 3 (untouched — still the destination). Same constitution, same mini-cycle: *study 2–3 references → design note → implement → gate green.* This file governs Stage 2R; ROADMAP.md and CLAUDE.md point here.
 
 ---
@@ -43,21 +45,23 @@ The instinct was right on every line — each "vibe idea" has a senior implement
 
 | Capability | Claude Code | opencode | aider | Codex | **Us today** |
 |---|---|---|---|---|---|
-| Permission modes (switchable) | 6 modes, Shift+Tab | per-agent perms | n/a (git is the undo) | policy × sandbox | ❌ one static table |
-| Roles / agents | subagents (md) | agents (md) — primary + sub | architect/editor | profiles | ❌ one hardcoded prompt |
-| Per-role model | ✅ | ✅ | ✅ (the SOTA trick) | ✅ | ❌ one model per session |
-| Reasoning control | thinking budgets | per-agent | `--reasoning-effort` | `model_reasoning_effort` | ❌ display only (2.9a) |
-| Skills (model-invoked procedures) | ✅ (originated it) | ✅ | — | ✅ | ❌ (commands are user-invoked) |
-| Web fetch tool | ✅ | ✅ | `/web` | ✅ | ❌ |
-| Diff preview at the gate | ✅ | ✅ | ✅ | ✅ | ❌ (gate prints args) |
+| Permission modes (switchable) | 6 modes, Shift+Tab | per-agent perms | n/a (git is the undo) | policy × sandbox | ✅ 2.10 — `chat`/`explore`/`build`/`auto`, `/mode` + `--mode` |
+| Roles / agents | subagents (md) | agents (md) — primary + sub | architect/editor | profiles | ✅ 2.11 — `agents/*.md`, four built-ins, `/agent` |
+| Per-role model | ✅ | ✅ | ✅ (the SOTA trick) | ✅ | ✅ 2.11 — `model:` frontmatter |
+| Reasoning control | thinking budgets | per-agent | `--reasoning-effort` | `model_reasoning_effort` | ✅ 2.12 — `/think` + native Ollama `think` |
+| Skills (model-invoked procedures) | ✅ (originated it) | ✅ | — | ✅ | ✅ 2.14 — `skills/*/SKILL.md`, one-line disclosure |
+| Web fetch tool | ✅ | ✅ | `/web` | ✅ | ✅ 2.13 |
+| Diff preview at the gate | ✅ | ✅ | ✅ | ✅ | ✅ 2.13 — unified diff at ask prompt |
 | Streaming, narration, thinking display | ✅ | ✅ | ✅ | ✅ | ✅ 2.9 |
 | Todo/plan tool | ✅ | ✅ | — | ✅ | ✅ 2.9c |
 | Subagents | ✅ | ✅ | — | ✅ | ✅ 2.6 (roles missing) |
 | Sessions/resume, compaction, slash cmds | ✅ | ✅ | ✅ | ✅ | ✅ 2.3/2.5/2.7 |
-| MCP client | ✅ | ✅ | — | ✅ | ❌ (consciously) |
-| Hooks | ✅ (30 lifecycle events) | ✅ | — | — | ❌ (consciously) |
+| MCP client | ✅ | ✅ | — | ✅ | ❌ **deferred 2026-07-08** (owner, ROADMAP3 §0: external tools aren't the bottleneck — the core is; future round with hooks) |
+| Hooks | ✅ (30 lifecycle events) | ✅ | — | — | ❌ consciously skipped (no consumer until Stage 3.4; revisit with MCP) |
 
 Read the ✅ column bottom-up and Stage 2 did its job: the loop, tools, sessions, permissions, streaming and todo are all standard. The gap is concentrated in exactly the owner's wishes. Good instincts.
+
+*(Re-scored 2026-07-08 at stage close: seven ❌ became ✅, the remaining two are deferrals with recorded reasons — the §5 exit-gate condition "every ❌ either ✅ or consciously-skipped-with-reason" holds.)*
 
 ## 3. Four design insights that shape the plan
 
@@ -147,6 +151,8 @@ One command, two providers, like Stage 2:
 
 **Then Stage 3 opens exactly as ROADMAP.md specs it** — surgical context ops first. Nothing in 2R touches the three pains directly; 2R exists so that when Stage 3 bends the harness, it bends a frontier-shaped one.
 
+> **Gate result (2026-07-07, re-affirmed at close 2026-07-08):** 11/11 on `gemini-2.5-flash-lite` AND local `qwen3:4b-instruct` on the tuned 2.15 config (logs: `acceptance-gemini.log`, `acceptance-local.log`); 136 offline tests; gap table re-scored above; notes 16–21 written; meter visible everywhere. One amendment to the plan as written: Stage 3 does **not** open next — the owner's 2026-07-08 decision inserts **Stage 2C** ([ROADMAP3.md](ROADMAP3.md), the cognitive core) between 2R and 3, because live ad-hoc sessions on the flash tier still fail while this gate passes — the gate is necessary, not sufficient.
+
 ## 6. What we are deliberately NOT copying
 
 | Frontier thing | Why not |
@@ -188,6 +194,6 @@ One command, two providers, like Stage 2:
 | 2.13 web_fetch + diff gate | **done** 2026-07-07 — note 19; gate 10/10 on BOTH providers (new task J: fetch example.com, report the heading); diff gate proven by pytest snapshots (`tests/test_repl.py`) |
 | 2.14 Skills | **done** 2026-07-07 — note 20; gate 11/11 on BOTH providers (new task K: fixture skill's house format read and obeyed, never guessed); trigger lesson: Rules-section instruction + "cannot be guessed" descriptions |
 | 2.15 Local lab | **done** 2026-07-07 — note 21 (lab log); FA+q8_0 applied machine-wide: +13 % gen speed, ctx ceiling stays 8,192 (weights overflow the card — quant buys placement, not window); bake-off: incumbent holds, phi4-mini + gemma3:4b both fail at smoke; gate 11/11 on tuned config |
-| 2.16 MCP client (stretch) | not started |
+| 2.16 MCP client (stretch) | **deferred** 2026-07-08 — owner decision (ROADMAP3 §0): *"MCP server or search engine is just external skill. The problem now is its core."* Rolls into a future round together with hooks; the number stays reserved |
 
-*(Approved 2026-07-07 — pointers live in ROADMAP.md's stage tables and CLAUDE.md's status line + repo map. Update this tracker and the CLAUDE.md status line as features land.)*
+*(Approved 2026-07-07; **closed 2026-07-08** — gate 11/11 both providers, gap table re-scored, 2.16 deferred. [ROADMAP3.md](ROADMAP3.md) / Stage 2C governs next.)*

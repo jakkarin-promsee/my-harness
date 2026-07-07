@@ -45,17 +45,20 @@ the trust (Stage 3).
 
 ## Status
 
-**Stage 2R (frontier parity) in progress — 2.10–2.14 shipped 2026-07-07.** The harness
-runs end-to-end on both providers with modes, roles, reasoning control, web fetch, and skills.
+**Stage 2R (frontier parity) closed 2026-07-08.** The harness runs end-to-end on both
+providers with modes, roles, reasoning control, web fetch, and skills; the local runtime
+is tuned (flash attention + q8_0 KV cache, +13 % gen speed). MCP was consciously deferred.
 
 - **136 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
 - **Exit gate 11/11 on both providers** (`uv run python acceptance/run.py <provider>`):
   local qwen3:4b-instruct and gemini-2.5-flash-lite — including "explore mode blocks a
   write", "answer from a fetched page", and "a skill's house format is read, never guessed".
 
-Remaining in 2R: the local speed lab (2.15), MCP as a stretch (2.16) —
-then **Stage 3** turns the three pains above into real features.
-Plans: [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/ROADMAP2.md](docs/ROADMAP2.md).
+Now in progress: **Stage 2C — the cognitive core** ([docs/ROADMAP3.md](docs/ROADMAP3.md)):
+system-prompt backbone + tiers, voice/effort knobs, structured tool observations,
+orientation, attention anchors — measured against a museum of real failing tasks.
+Then **Stage 3** turns the three pains above into real features.
+Plans: [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/ROADMAP2.md](docs/ROADMAP2.md) → [docs/ROADMAP3.md](docs/ROADMAP3.md).
 
 ## Quickstart
 

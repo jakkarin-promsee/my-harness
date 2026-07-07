@@ -177,7 +177,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 | 0 — Recon | **done** — labs pass on Ollama + Gemini (owner-verified) | 2026-07-06 | 2026-07-06 |
 | 1 — MVP | **done** — acceptance green on Gemini (B also local); walkthrough folded into Stage 2 reviews | 2026-07-06 | 2026-07-06 |
 | 2 — Copy the seniors | **done** — features 2.0–2.9 complete; exit gate 7/7 on gemini-2.5-flash-lite AND local qwen3:4b-instruct | 2026-07-06 | 2026-07-07 |
-| 2R — Frontier parity | **approved** — plan in [ROADMAP2.md](ROADMAP2.md); features 2.10–2.16, not started | 2026-07-07 | — |
+| 2R — Frontier parity | **done** — 2.10–2.15 shipped, exit gate 11/11 on BOTH providers; 2.16 MCP deferred with reason (owner 2026-07-08, see [ROADMAP2.md](ROADMAP2.md) tracker) | 2026-07-07 | 2026-07-08 |
 | 3 — Make it mine | queued behind 2R (owner decision 2026-07-07: reach frontier parity first) | — | — |
 
 *(Update this table and the "Current status" line in [CLAUDE.md](CLAUDE.md) as milestones complete.)*
