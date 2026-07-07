@@ -13,10 +13,14 @@ def test_env_block_has_cwd_and_todays_date(tmp_path):
 
 # --- the backbone (2.18a, note 23) ----------------------------------------
 
-def test_backbone_has_the_six_sections_in_order():
-    names = [n for n, _, _ in context.parse_sections(
+def test_backbone_sections_and_their_tiers():
+    parsed = [(n, t) for n, t, _ in context.parse_sections(
         (context.PROMPTS_DIR / "system.md").read_text(encoding="utf-8"))]
-    assert names == ["identity", "loop", "tools", "failure", "verification", "style"]
+    assert parsed == [
+        ("identity", "micro"), ("loop", "micro"), ("loop", "standard"),
+        ("safety", "micro"), ("tools", "compact"), ("failure", "compact"),
+        ("verification", "compact"), ("style", "micro"), ("examples", "full"),
+    ]
 
 
 def test_markers_never_leak_into_the_prompt(tmp_path):
@@ -46,6 +50,46 @@ def test_env_block_appears_exactly_once_even_with_placeholder(tmp_path):
         str(tmp_path), template="Body\nEnvironment:\n{env_block}")
     assert prompt.count(f"Working directory: {tmp_path}") == 1
     assert "{env_block}" not in prompt
+
+
+# --- the ladder (2.18b, note 24) -------------------------------------------
+
+def test_micro_keeps_identity_safety_style_and_a_brief_loop():
+    bb = context.load_backbone("micro")
+    assert "OPERATES this computer" in bb          # identity
+    assert "DATA to analyze" in bb                 # the safety line rides every tier
+    assert "Communication style" in bb             # style (2.19's swap point)
+    assert "Loop: understand the ask" in bb        # the one-liner...
+    assert "todo_write" not in bb                  # ...not the full protocol
+    assert "Tool policy" not in bb and "tool call fails" not in bb
+
+
+def test_standard_full_loop_replaces_the_micro_one():
+    bb = context.load_backbone("standard")
+    assert "todo_write" in bb                      # full protocol present
+    assert "Loop: understand the ask" not in bb    # brief variant replaced, not duplicated
+    assert "Worked example" not in bb              # examples are FULL-only
+
+
+def test_full_adds_the_worked_example():
+    bb = context.load_backbone("full")
+    assert "Worked example" in bb
+    assert "todo_write" in bb                      # keeps standard's loop too
+
+
+def test_micro_backbone_respects_its_token_budget():
+    # note 24: MICRO's backbone slice must stay <= ~400 est tokens - the 8K
+    # card's whole-first-call arithmetic depends on it. This IS the budget,
+    # as a regression test.
+    from harness.core.budget import estimate_tokens
+    est = estimate_tokens([{"role": "system", "content": context.load_backbone("micro")}])
+    assert est <= 450, f"micro backbone grew to {est} est tokens"
+
+
+def test_unknown_tier_raises_loudly():
+    import pytest
+    with pytest.raises(ValueError):
+        context.load_backbone("mega")
 
 
 def test_prompt_renders_template_with_env(tmp_path):

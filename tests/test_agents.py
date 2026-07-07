@@ -71,3 +71,11 @@ def test_backbone_frontmatter_opt_out():
     assert spec.backbone is False
     spec = parse_agent_file("y", "---\ndescription: d\n---\nbody")
     assert spec.backbone is True
+
+
+def test_tier_frontmatter_rides_the_spec():
+    # 2.18b (note 24): a role may pin its ladder rung.
+    from harness.core.agents import parse_agent_file
+    spec = parse_agent_file("x", "---\ntier: full\n---\nbody")
+    assert spec.tier == "full"
+    assert parse_agent_file("y", "---\ndescription: d\n---\nbody").tier is None

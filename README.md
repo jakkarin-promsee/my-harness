@@ -107,6 +107,7 @@ Everything below happens inside `uv run harness [provider]`. Type a task at the
 | `/mode` · `/mode NAME` | show / switch the permission profile, mid-session |
 | `/agent` · `/agent NAME` | list roles / switch role (prompt + default mode + pinned model) |
 | `/think` · `/think VALUE` | show / set reasoning: `off` `on` `low` `medium` `high` |
+| `/prompt` · `/prompt TIER` | show the prompt-ladder tiers with measured token costs / switch (`micro` `compact` `standard` `full`) — local defaults to `micro`, Gemini to `standard` |
 | `/tokens` | context size vs. the model's window |
 | `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file) |
 | `/NAME args` | anything else runs `commands/NAME.md` with `{{args}}` substituted |

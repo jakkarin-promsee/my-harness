@@ -32,7 +32,7 @@ from dotenv import load_dotenv
 
 from harness.core import agents as roles
 from harness.core import budget, commands
-from harness.core.context import build_system_prompt
+from harness.core.context import TIERS, build_system_prompt, load_backbone
 from harness.core.loop import Agent
 from harness.core.permissions import ModeSet, load_modes
 from harness.core.session import SessionStore
@@ -62,6 +62,9 @@ PROVIDERS = {
         # tool call — give generation headroom (2000 was thinking-death,
         # see docs/notes/11-visible-mind.md).
         "max_tokens": 4096,
+        # The ladder tier (note 24): the 8K card runs the ~200-token MICRO
+        # backbone; the whole-first-call budget is the reason the ladder exists.
+        "tier": "micro",
     },
     # Two Gemini lanes since 2.17 (ROADMAP3 §4): "gemini" = flash-lite, the
     # cheap REGRESSION lane (before/after-every-feature runs); "gemini-flash"
@@ -73,6 +76,7 @@ PROVIDERS = {
         "model": "gemini-2.5-flash-lite",
         "context_window": 1_048_576,
         "max_tokens": 2000,
+        "tier": "standard",
     },
     "gemini-flash": {
         "kind": "openai",
@@ -84,6 +88,7 @@ PROVIDERS = {
         # (note 22's probe); 2000 would be thinking-death — the note-11
         # lesson, paid edition. 2.19 wires the off-switch.
         "max_tokens": 8192,
+        "tier": "standard",
     },
     "anthropic": {
         "kind": "anthropic",
@@ -91,6 +96,7 @@ PROVIDERS = {
         "model": os.getenv("ANTHROPIC_MODEL", "claude-haiku-4-5-20251001"),
         "context_window": 200_000,
         "max_tokens": 2000,
+        "tier": "standard",
     },
 }
 
@@ -270,8 +276,10 @@ def main() -> None:
     def assemble(spec: roles.AgentSpec) -> str:
         # Same 2.4 pipeline for every role; since 2.18a a role EXTENDS the
         # backbone unless its frontmatter says `backbone: false` (note 23).
+        # `tier` is read LIVE from the enclosing scope, so /prompt switches
+        # and spawn-time children (note 24) both see the current rung.
         return build_system_prompt(template=spec.prompt or None,
-                                   backbone=spec.backbone)
+                                   backbone=spec.backbone, tier=tier)
 
     store = SessionStore()
     if args.sessions:
@@ -298,6 +306,10 @@ def main() -> None:
     elif agent_specs[active_agent].model:
         print(f"  [!] agent {active_agent!r} pins unknown provider "
               f"{agent_specs[active_agent].model!r} - using {provider_name}")
+    # The ladder rung (note 24): agent frontmatter beats the provider default.
+    tier = agent_specs[active_agent].tier or primary_cfg.get("tier", "standard")
+    if tier not in TIERS:
+        sys.exit(f"unknown tier {tier!r} - available: {', '.join(TIERS)}")
     model = make_model(primary_cfg, on_delta=StreamPrinter())
     model.think = agent_specs[active_agent].think  # role default; /think overrides
     child_model = make_model(provider)
@@ -339,10 +351,12 @@ def main() -> None:
         approve=gate,
         emit=print,
         get_parent_messages=lambda: messages,
-        system_prompt=assemble(agent_specs[active_agent]),
+        # Callables, not strings: children assemble at SPAWN time (note 24),
+        # so /prompt and /agent switches reach them.
+        system_prompt=lambda: assemble(agent_specs[active_agent]),
         on_usage=on_usage,
         # The registry that serves /agent serves fresh children too (note 17).
-        agent_prompts={n: assemble(s) for n, s in agent_specs.items()},
+        agent_prompts={n: (lambda s=s: assemble(s)) for n, s in agent_specs.items()},
     )
     # The todo list is top-level only: children never see its schema, so they
     # never call it (docs/notes/13-todo-tool.md).
@@ -367,7 +381,7 @@ def main() -> None:
 
     window = primary_cfg.get("context_window", 0)
     print(f"researcher-harness | provider: {provider_name} | model: {primary_cfg['model']}"
-          f" | mode: {modeset.active} | agent: {active_agent}")
+          f" | mode: {modeset.active} | agent: {active_agent} | prompt: {tier}")
     print(f"session: {session_id} | type a task, 'exit' to quit")
     if not messages:  # fresh session gets the system prompt as message zero
         messages = [{"role": "system", "content": assemble(agent_specs[active_agent])}]
@@ -394,7 +408,30 @@ def main() -> None:
         # ---- slash commands: builtins first, then template commands ----
         if user == "/help":
             templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
-            print("  builtins: /tokens /compact /mode /agent /think /help | templates (commands/*.md): " + templates)
+            print("  builtins: /tokens /compact /mode /agent /think /prompt /help | templates (commands/*.md): " + templates)
+            continue
+        if user == "/prompt" or user.startswith("/prompt "):
+            value = user.removeprefix("/prompt").strip()
+            if not value:
+                # The ladder menu with measured costs (note 24): the meter,
+                # not the docs, gets the final word on what a tier costs.
+                for t in TIERS:
+                    est = budget.estimate_tokens(
+                        [{"role": "system", "content": load_backbone(t)}])
+                    mark = "*" if t == tier else " "
+                    print(f"  {mark} {t:<9} backbone ~{est:,} tokens")
+                continue
+            if value not in TIERS:
+                print(f"  invalid tier {value!r} (choose from {', '.join(TIERS)})")
+                continue
+            tier = value
+            # /agent precedent (note 24): swap the system message, continue
+            # in a NEW session file so --resume replays what actually ran.
+            messages[0] = {"role": "system", "content": assemble(agent_specs[active_agent])}
+            session_id = store.new()
+            for m in messages:
+                persist(m)
+            print(f"  prompt tier: {tier} | session: {session_id}")
             continue
         if user == "/think" or user.startswith("/think "):
             value = user.removeprefix("/think").strip()
@@ -420,6 +457,10 @@ def main() -> None:
                 print(f"  unknown agent {name!r} (available: {', '.join(sorted(agent_specs))})")
                 continue
             sw = agent_specs[name]
+            if sw.tier in TIERS:
+                tier = sw.tier  # the role's ladder override (note 24)
+            elif sw.tier:
+                print(f"  [!] agent {name!r} names unknown tier {sw.tier!r} - keeping {tier}")
             messages[0] = {"role": "system", "content": assemble(sw)}
             if sw.mode and sw.mode in modeset.modes:
                 modeset.switch(sw.mode)

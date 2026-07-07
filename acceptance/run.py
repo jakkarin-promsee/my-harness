@@ -273,7 +273,8 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
-def run_once(task: dict, model, modes, specs, on_usage) -> tuple[bool, str]:
+def run_once(task: dict, model, modes, specs, on_usage,
+             tier: str = "standard") -> tuple[bool, str]:
     """One fresh Agent + messages list for one task run. The 2.17 refactor
     only extracted this from main()'s old body - the per-run machinery
     (fresh gate, spawn tool, todo list) is unchanged."""
@@ -284,12 +285,15 @@ def run_once(task: dict, model, modes, specs, on_usage) -> tuple[bool, str]:
     modeset = ModeSet(modes, active=task.get("mode", "build"))
     gate = make_gate(True, modeset)
     # Per-task role (2.11): a named agent's body rides the same pipeline;
-    # since 2.18a it extends the backbone unless the role opts out (note 23).
+    # since 2.18a it extends the backbone unless the role opts out (note 23),
+    # at the provider's ladder tier (note 24) - the gate proves the tier
+    # each provider actually ships with.
     spec = specs[task["agent"]] if task.get("agent") else None
     messages = [
         {"role": "system", "content": build_system_prompt(
             template=spec.prompt if spec else None,
-            backbone=spec.backbone if spec else True)},
+            backbone=spec.backbone if spec else True,
+            tier=spec.tier or tier if spec else tier)},
         {"role": "user", "content": task["prompt"]},
     ]
     spawn_fn, spawn_schema = make_spawn_tool(
@@ -365,8 +369,9 @@ def main() -> None:
         pin, pout = PRICES[provider["model"]]
         return (u["in"] * pin + (u["out"] + u["think"]) * pout) / 1e6
 
+    tier = provider.get("tier", "standard")
     print(f"=== acceptance | provider: {args.provider} | model: {provider['model']}"
-          f" | suite: {args.suite} | n={args.n} ===")
+          f" | suite: {args.suite} | n={args.n} | tier: {tier} ===")
     results = []  # (task_id, [(ok, note, usage, secs), ...])
     for task in tasks:
         runs = []
@@ -374,7 +379,7 @@ def main() -> None:
             run_usage.update({"in": 0, "out": 0, "think": 0})
             print(f"\n--- {task['id']} (run {i + 1}/{args.n}) ---")
             t0 = time.monotonic()
-            ok, note = run_once(task, model, modes, specs, on_usage)
+            ok, note = run_once(task, model, modes, specs, on_usage, tier)
             secs = time.monotonic() - t0
             usage = dict(run_usage)
             runs.append((ok, note, usage, secs))

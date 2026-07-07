@@ -53,9 +53,9 @@ def make_spawn_tool(
     approve,
     emit,
     get_parent_messages,  # callable -> the LIVE parent list (it gets rebound on /compact)
-    system_prompt: str,
+    system_prompt,        # str, or a callable -> str assembled at SPAWN time (note 24)
     on_usage=None,
-    agent_prompts: dict | None = None,  # {role name: assembled system prompt} (note 17)
+    agent_prompts: dict | None = None,  # {role name: prompt-or-callable} (notes 17, 24)
 ):
     # The child gets the same tools MINUS spawn itself: no recursion at Stage 2.
     # Actively stripped (not just "don't pass it") so the invariant can't be
@@ -81,7 +81,11 @@ def make_spawn_tool(
             # Deep copy: the child must never mutate parent history.
             child_messages = copy.deepcopy(get_parent_messages())
         else:
+            # Callables resolve NOW, not at construction (note 24): a child
+            # spawned after /prompt or /agent switched must feel the change.
             child_prompt = agent_prompts[agent] if agent else system_prompt
+            if callable(child_prompt):
+                child_prompt = child_prompt()
             child_messages = [{"role": "system", "content": child_prompt}]
         child_messages.append({"role": "user", "content": prompt})
 

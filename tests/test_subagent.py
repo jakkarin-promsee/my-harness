@@ -151,3 +151,30 @@ def test_role_plus_fork_is_error_text():
     spawn_fn, _ = make_spawn_with_roles(FakeModel([]), {"plan": "P"})
     out = spawn_fn("x", context="fork", agent="plan")
     assert out.startswith("ERROR") and "fresh" in out
+
+
+def test_fresh_child_prompt_assembles_at_spawn_time():
+    # 2.18b (note 24): /prompt and /agent switches must reach children -
+    # callables resolve at spawn, not at construction.
+    from harness.core.subagent import make_spawn_tool
+    from tests.fakes import text_reply
+
+    class RecordingModel:
+        def __init__(self):
+            self.seen = []
+
+        def complete(self, messages, schemas):
+            self.seen.append([dict(m) for m in messages])
+            return text_reply("done")
+
+    live = {"prompt": "OLD PROMPT"}
+    model = RecordingModel()
+    spawn, _ = make_spawn_tool(
+        model=model, registry={}, schemas=[], needs_permission=set(),
+        approve=lambda n, a: True, emit=lambda s: None,
+        get_parent_messages=lambda: [],
+        system_prompt=lambda: live["prompt"],
+    )
+    live["prompt"] = "NEW PROMPT"  # switched between construction and spawn
+    spawn("do a thing")
+    assert model.seen[0][0]["content"] == "NEW PROMPT"
