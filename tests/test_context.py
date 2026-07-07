@@ -167,3 +167,39 @@ def test_unknown_voice_raises_loudly():
     import pytest
     with pytest.raises(ValueError):
         context.load_backbone("standard", voice="shakespeare")
+
+
+# --- orientation snapshot (2.22, note 29) -----------------------------------
+
+def test_snapshot_micro_is_one_line(tmp_path):
+    (tmp_path / "src").mkdir()
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "readme.md").write_text("x")
+    snap = context.build_snapshot(str(tmp_path), tier="micro")
+    assert snap == "Project map: docs/, src/ + 1 top-level files"
+
+
+def test_snapshot_standard_names_children_and_caps(tmp_path):
+    d = tmp_path / "src"
+    d.mkdir()
+    for i in range(12):
+        (d / f"f{i:02}.py").write_text("x")
+    snap = context.build_snapshot(str(tmp_path))
+    assert snap.splitlines()[0].startswith("Project map (")
+    line = next(l for l in snap.splitlines() if l.strip().startswith("src/"))
+    assert "+4 more" in line  # 12 children, cap 8
+
+
+def test_snapshot_skips_junk_and_dot_dirs(tmp_path):
+    (tmp_path / ".git").mkdir()
+    (tmp_path / "__pycache__").mkdir()
+    (tmp_path / "real").mkdir()
+    snap = context.build_snapshot(str(tmp_path))
+    assert ".git" not in snap and "__pycache__" not in snap and "real/" in snap
+
+
+def test_snapshot_rides_operator_prompts_only(tmp_path):
+    (tmp_path / "src").mkdir()
+    assert "Project map" in context.build_system_prompt(str(tmp_path))
+    assert "Project map" not in context.build_system_prompt(
+        str(tmp_path), template="chat body", backbone=False)

@@ -22,8 +22,53 @@ import time
 from pathlib import Path
 
 from harness.core import skills as skills_lib
+from harness.tools.basic import SKIP_DIRS  # one fact, one home (note 29)
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
+
+# The orientation snapshot (2.22, note 29): a map, not a dump. Two levels,
+# capped, tier-sized - its token cost rides the whole-first-call budget.
+SNAPSHOT_DIR_CAP = 20    # top-level dirs shown
+SNAPSHOT_CHILD_CAP = 8   # children named per dir
+
+
+def _visible(p: Path) -> bool:
+    return p.name not in SKIP_DIRS and not p.name.startswith(".")
+
+
+def build_snapshot(cwd: str, tier: str = "standard") -> str:
+    """The project's shape, so no task starts with a blind list_dir-flail:
+    micro = one line (top-level dirs + file count); compact+ = one line per
+    top-level dir naming up to 8 children. Empty string on any OS trouble -
+    orientation is a courtesy, never a crash."""
+    root = Path(cwd)
+    try:
+        entries = sorted(root.iterdir(), key=lambda p: p.name.lower())
+    except OSError:
+        return ""
+    dirs = [p for p in entries if p.is_dir() and _visible(p)]
+    files = [p for p in entries if p.is_file() and _visible(p)]
+    if not dirs and not files:
+        return ""
+    if tier == "micro":
+        names = ", ".join(f"{d.name}/" for d in dirs[:SNAPSHOT_DIR_CAP])
+        return f"Project map: {names} + {len(files)} top-level files"
+    lines = []
+    for d in dirs[:SNAPSHOT_DIR_CAP]:
+        try:
+            children = sorted((c for c in d.iterdir() if _visible(c)),
+                              key=lambda p: (not p.is_dir(), p.name.lower()))
+        except OSError:
+            continue
+        shown = ", ".join(c.name + ("/" if c.is_dir() else "") for c in children[:SNAPSHOT_CHILD_CAP])
+        more = f", +{len(children) - SNAPSHOT_CHILD_CAP} more" if len(children) > SNAPSHOT_CHILD_CAP else ""
+        lines.append(f"  {d.name}/: {shown}{more}")
+    if files:
+        shown = ", ".join(f.name for f in files[:SNAPSHOT_CHILD_CAP])
+        more = f", +{len(files) - SNAPSHOT_CHILD_CAP} more" if len(files) > SNAPSHOT_CHILD_CAP else ""
+        lines.append(f"  ./: {shown}{more}")
+    return ("Project map (top-level dirs and their children; dirs end with /):\n"
+            + "\n".join(lines))
 
 SECTION_MARK = re.compile(r"<!--\s*section:\s*([\w-]+)\s*(?:tier:\s*(\w+)\s*)?-->")
 
@@ -135,6 +180,12 @@ def build_system_prompt(cwd: str | None = None, template: str | None = None,
         prompt = prompt.replace("{env_block}", env, 1).replace("{env_block}", "")
     else:
         prompt = prompt.rstrip() + "\n\nEnvironment:\n" + env
+    if backbone:
+        # Orientation (2.22, note 29): operators get the map; a chat-only
+        # role (backbone=False) has nothing to navigate.
+        snap = build_snapshot(cwd, tier)
+        if snap:
+            prompt += "\n\n" + snap
     # Project memory: the file the USER owns. Cross-tool convention: AGENTS.md.
     agents_md = Path(cwd) / "AGENTS.md"
     if agents_md.exists():

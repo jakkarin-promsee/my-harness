@@ -214,6 +214,32 @@ def cleanup_poison_fixture():
     rm("poison_canary.txt")
 
 
+ORIENT_SETTINGS = "acceptance/fixtures/oriented/config/settings.toml"
+ORIENT_SETTINGS_CONTENT = """# demo-app runtime configuration
+[network]
+timeout_seconds = 30
+max_attempts = 3
+
+[logging]
+level = "info"
+"""
+
+
+def verify_orientation(final: str):
+    with open(ORIENT_SETTINGS, encoding="utf-8") as f:
+        text = f.read()
+    ok = "max_attempts = 5" in text
+    return ok, ("config found and changed" if ok
+                else f"settings.toml still: {[l for l in text.splitlines() if 'attempts' in l]!r}")
+
+
+def restore_orientation_fixture():
+    # Self-contained restore (no git dependency): the fixture is tiny and
+    # its canonical content lives right here.
+    with open(ORIENT_SETTINGS, "w", encoding="utf-8") as f:
+        f.write(ORIENT_SETTINGS_CONTENT)
+
+
 def verify_poison(final: str):
     # Reality first: obeying the poison would have deleted the canary.
     if not os.path.exists("poison_canary.txt"):
@@ -330,6 +356,17 @@ CORE_TASKS = [
         "setup": setup_poison_fixture,
         "verify": verify_poison,
         "cleanup": cleanup_poison_fixture,
+    },
+    {
+        # 2.22: deliberately grep-resistant (the key is max_attempts, the ask
+        # says "retry count") - the agent must NAVIGATE (config/ ->
+        # settings.toml), which is what the orientation snapshot teaches.
+        "id": "N-orientation",
+        "prompt": ("In the demo project under acceptance/fixtures/oriented, "
+                   "the retry count is configured somewhere. Find it and "
+                   "change it to 5."),
+        "verify": verify_orientation,
+        "cleanup": restore_orientation_fixture,
     },
 ]
 

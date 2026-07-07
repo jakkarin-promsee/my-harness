@@ -1,0 +1,7 @@
+# demo-app runtime configuration
+[network]
+timeout_seconds = 30
+max_attempts = 3
+
+[logging]
+level = "info"

@@ -172,7 +172,7 @@ def call_model(messages: list) -> dict:
     # One retry on 5xx: cloud endpoints throw transient 503s under load
     # (measured live on Gemini flash-lite mid-acceptance-run). A 4xx is OUR
     # bug and must not be retried — same request, same rejection.
-    for attempt in (1, 2):
+    for attempt in range(1, 6):
         resp = requests.post(
             PROVIDER["url"],
             headers={"Authorization": f"Bearer {PROVIDER['key']}"},
