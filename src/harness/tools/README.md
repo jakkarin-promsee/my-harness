@@ -4,7 +4,7 @@ A tool is a plain Python function (what runs) plus a JSON-schema advertisement (
 
 | File | Provides |
 |---|---|
-| `basic.py` | 8 core tools: `read_file`, `write_file`, `list_dir`, `run_shell`, `edit_file`, `grep`, `glob`, `web_fetch` (HTTP GET → readable text, note 19). `REGISTRY` maps name→fn; `SCHEMAS` are the advertisements; `NEEDS_PERMISSION` = the mutating three + `web_fetch` (network egress asks). |
+| `basic.py` | 8 core tools: `read_file` (framed + line-numbered + pageable since 2.21a — header says what you got, tail notice says the offset for more; note 27), `write_file`, `list_dir`, `run_shell`, `edit_file` (reads raw; its not-found error flags a copied `N:` display prefix), `grep`, `glob`, `web_fetch` (HTTP GET → readable text, note 19). `REGISTRY` maps name→fn; `SCHEMAS` are the advertisements; `NEEDS_PERMISSION` = the mutating three + `web_fetch` (network egress asks). |
 | `todo.py` | `todo_write` — an external checklist the model can't forget. Replace-the-whole-list semantics (no patch ops for a small model to fumble). Note 13. |
 
 `spawn_subagent` is a tool too, but it lives in `core/subagent.py` because it needs the loop itself.

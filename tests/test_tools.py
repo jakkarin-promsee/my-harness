@@ -8,11 +8,60 @@ import requests
 from harness.tools import basic
 
 
+def raw(path: str) -> str:
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def test_write_then_read_roundtrip(tmp_path):
     target = str(tmp_path / "sub" / "note.txt")  # parent dir gets created
     result = basic.write_file(target, "hello harness")
     assert "13 chars" in result
-    assert basic.read_file(target) == "hello harness"
+    # 2.21a: read_file now frames - header + numbered payload
+    out = basic.read_file(target)
+    assert out.splitlines()[0] == f"[read_file] {target} - lines 1-1 of 1"
+    assert "1: hello harness" in out
+
+
+# ---- read_file frames & paging (2.21a, note 27) ---------------------------
+
+def test_read_file_pages_with_offset_and_tail_notice(tmp_path):
+    fp = str(tmp_path / "big.txt")
+    basic.write_file(fp, "\n".join(f"line {i}" for i in range(1, 301)))
+    first = basic.read_file(fp)
+    assert f"[read_file] {fp} - lines 1-200 of 300" in first
+    assert "call read_file again with offset=201" in first
+    second = basic.read_file(fp, offset=201)
+    assert f"[read_file] {fp} - lines 201-300 of 300" in second
+    assert "offset=" not in second.splitlines()[-1]  # no notice: window reached the end
+    assert "300: line 300" in second
+
+
+def test_read_file_char_guard_cuts_at_whole_lines(tmp_path):
+    fp = str(tmp_path / "wide.txt")
+    basic.write_file(fp, "\n".join("x" * 500 for _ in range(50)))
+    out = basic.read_file(fp)
+    last_shown = int(out.splitlines()[0].split("lines 1-")[1].split(" of")[0])
+    assert last_shown < 50                      # guard engaged before the line limit
+    assert f"offset={last_shown + 1}" in out    # and the way back is stated
+
+
+def test_read_file_errors_teach_the_workflow(tmp_path):
+    assert "glob or list_dir" in basic.read_file(str(tmp_path / "nope.txt"))
+    assert "use list_dir" in basic.read_file(str(tmp_path))
+    fp = str(tmp_path / "empty.txt")
+    basic.write_file(fp, "")
+    assert "empty file" in basic.read_file(fp)
+    fp2 = str(tmp_path / "small.txt")
+    basic.write_file(fp2, "a\nb")
+    assert "past the end" in basic.read_file(fp2, offset=99)
+
+
+def test_edit_error_flags_copied_line_number_prefix(tmp_path):
+    fp = str(tmp_path / "f.py")
+    basic.write_file(fp, "a = 1\n")
+    out = basic.edit_file(fp, "1: a = 1", "a = 2")  # the display prefix leaked
+    assert "display-only" in out
 
 
 def test_list_dir_is_sorted_json(tmp_path):
@@ -45,7 +94,7 @@ def test_edit_replaces_a_unique_match(tmp_path):
     fp = str(tmp_path / "f.py")
     basic.write_file(fp, "a = 1\nb = 2\n")
     assert "1 replacement" in basic.edit_file(fp, "b = 2", "b = 99")
-    assert basic.read_file(fp) == "a = 1\nb = 99\n"
+    assert raw(fp) == "a = 1\nb = 99\n"
 
 
 def test_edit_refuses_missing_and_ambiguous_matches(tmp_path):
@@ -53,7 +102,7 @@ def test_edit_refuses_missing_and_ambiguous_matches(tmp_path):
     basic.write_file(fp, "x = 1\nx = 1\n")
     assert "not found" in basic.edit_file(fp, "y = 3", "z")
     assert "appears 2 times" in basic.edit_file(fp, "x = 1", "z")
-    assert basic.read_file(fp) == "x = 1\nx = 1\n"  # nothing was touched
+    assert raw(fp) == "x = 1\nx = 1\n"  # nothing was touched
 
 
 def test_grep_finds_matches_and_skips_junk_dirs(tmp_path):

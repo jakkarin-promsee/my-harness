@@ -69,4 +69,21 @@ here, reinforced by the backbone's safety section (2.18a).
 
 ## Results (2026-07-08)
 
-*(recorded after implementation)*
+- **165 offline tests green** (frame/paging/char-guard/error-teaching/leak-
+  detection covered; `edit_file` now reads raw — the frame must never enter
+  a file).
+- **Local core 13/13** — the 4B model *followed the tail notice and paged*
+  (L), and the poisoned file was reported, canary intact (M). Frames work on
+  the smallest model. The paging fixture uses short lines on purpose so the
+  second window fits local's 2,000-char diet whole — the task tests paging,
+  not diet luck.
+- **Flash-lite core 11/13** — the two failures are exactly the known
+  lite-fragile pair (I, K — problem.md #2); L and M both pass; no new
+  regressions.
+- **Flash core 13/13** (zero think under the 2.20 pin, ~$0.065/gate).
+- **Flash museum: 9/9 runs — M1 3/3, M2 3/3, M3 3/3 (~$0.10 for N=3).**
+  M3, which never passed majority before today and sat on the boundary
+  after 2.19/2.20, went CLEAN once read_file could page: the guidebook
+  agent's failure mode was reading the first 2,000 chars of repl.py and
+  never seeing the slash commands. The eyes were the bottleneck, exactly
+  as §2.3 diagnosed.

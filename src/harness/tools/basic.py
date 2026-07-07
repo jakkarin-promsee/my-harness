@@ -21,9 +21,43 @@ import requests
 SKIP_DIRS = {".git", ".venv", "__pycache__", "node_modules", "sessions"}
 
 
-def read_file(path: str) -> str:
+# read_file's window (2.21a, note 27): a default page of 200 lines, char-
+# guarded so one enormous line can't wreck the frame. 5,600 chars fits whole
+# inside the gemini lanes' 6,000-char loop diet — the frame survives intact.
+READ_LIMIT_LINES = 200
+READ_MAX_CHARS = 5_600
+
+
+def read_file(path: str, offset: int = 1, limit: int = READ_LIMIT_LINES) -> str:
+    """Framed, line-numbered, pageable (2.21a): header says what you're
+    looking at, the tail notice says how to get more — every observation
+    answers 'what did I do / what am I seeing / what can I do next'."""
+    if not os.path.exists(path):
+        return f"ERROR: {path} does not exist - find the right path with glob or list_dir first."
+    if os.path.isdir(path):
+        return f"ERROR: {path} is a directory - use list_dir for directories."
     with open(path, "r", encoding="utf-8", errors="replace") as f:
-        return f.read()
+        lines = f.read().splitlines()
+    total = len(lines)
+    if total == 0:
+        return f"[read_file] {path} - empty file (0 lines)"
+    offset, limit = max(1, int(offset)), max(1, int(limit))
+    if offset > total:
+        return (f"[read_file] {path} - only {total} lines; offset={offset} is past "
+                f"the end. Re-call with offset between 1 and {total}.")
+    shown, chars = [], 0
+    for i, line in enumerate(lines[offset - 1:offset - 1 + limit]):
+        numbered = f"{offset + i}: {line}"
+        if shown and chars + len(numbered) > READ_MAX_CHARS:
+            break  # char guard: cut at a whole line, never mid-line
+        shown.append(numbered)
+        chars += len(numbered) + 1
+    last = offset + len(shown) - 1
+    out = [f"[read_file] {path} - lines {offset}-{last} of {total}", *shown]
+    if last < total:
+        out.append(f"[... {total - last} more lines - call read_file again "
+                   f"with offset={last + 1} ...]")
+    return "\n".join(out)
 
 
 def write_file(path: str, content: str) -> str:
@@ -51,11 +85,19 @@ def run_shell(command: str) -> str:
 def edit_file(path: str, old_string: str, new_string: str) -> str:
     # The uniqueness rule (Claude Code's Edit, aider's search/replace):
     # ambiguity becomes an error the MODEL can fix by adding context,
-    # never a silent wrong edit.
-    text = read_file(path)
+    # never a silent wrong edit. Reads RAW - read_file's frame and line
+    # numbers (2.21a) are display, not file content.
+    with open(path, "r", encoding="utf-8", errors="replace") as f:
+        text = f.read()
     count = text.count(old_string)
     if count == 0:
-        return f"ERROR: old_string not found in {path}. Read the file and copy the text exactly."
+        hint = ""
+        if re.match(r"\s*\d+: ", old_string):
+            # The classic trap after 2.21a: copying read_file's display
+            # prefix into an edit. The error teaches the fix at every tier.
+            hint = (" Note: read_file's 'N:' line numbers are display-only -"
+                    " they are not in the file; remove the prefix.")
+        return f"ERROR: old_string not found in {path}.{hint} Read the file and copy the text exactly."
     if count > 1:
         return f"ERROR: old_string appears {count} times in {path}. Add surrounding context to make it unique."
     with open(path, "w", encoding="utf-8") as f:
@@ -229,8 +271,16 @@ def _schema(name: str, desc: str, props: dict, required: list) -> dict:
 SCHEMAS = [
     _schema(
         "read_file",
-        "Read a text file and return its full contents.",
-        {"path": {"type": "string", "description": "File path, relative to the working directory."}},
+        "Read a text file as a line-numbered window (default: 200 lines from "
+        "the top). The first line reports which lines you got out of how many; "
+        "a tail notice tells you the offset to re-call with for the rest. "
+        "Line numbers are display-only - they are NOT in the file, so never "
+        "include the 'N:' prefix in edit_file's old_string.",
+        {
+            "path": {"type": "string", "description": "File path, relative to the working directory."},
+            "offset": {"type": "integer", "description": "First line to read (1-based, default 1)."},
+            "limit": {"type": "integer", "description": "Max lines to return (default 200)."},
+        },
         ["path"],
     ),
     _schema(

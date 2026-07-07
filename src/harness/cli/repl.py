@@ -67,6 +67,8 @@ PROVIDERS = {
         "tier": "micro",
         # Narration costs window on 8K (note 25) - normal, not explain.
         "voice": "normal",
+        # Tool-result diet (2.21a): tight on the 8K card.
+        "max_tool_chars": 2000,
     },
     # Two Gemini lanes since 2.17 (ROADMAP3 §4): "gemini" = flash-lite, the
     # cheap REGRESSION lane (before/after-every-feature runs); "gemini-flash"
@@ -81,6 +83,9 @@ PROVIDERS = {
         "tier": "standard",
         # The owner's wish (note 25): Gemini narrates and teaches by default.
         "voice": "explain",
+        # Bounded raise (2.21a, red-team #11): one read_file frame (5.6k)
+        # fits whole; NOT a license to dump - history re-bills every call.
+        "max_tool_chars": 6000,
     },
     "gemini-flash": {
         "kind": "openai",
@@ -99,6 +104,7 @@ PROVIDERS = {
         # 3/3 at off, 2.5x cheaper than medium) - and by default it bills
         # invisibly. off = reasoning_effort "none" on this wire (note 25).
         "think": "off",
+        "max_tool_chars": 6000,
     },
     "anthropic": {
         "kind": "anthropic",
@@ -403,6 +409,7 @@ def main() -> None:
         emit_thinking=print_thinking,
         on_usage=on_usage,
         on_message=persist,
+        max_tool_chars=primary_cfg.get("max_tool_chars", 2000),
     )
 
     window = primary_cfg.get("context_window", 0)
@@ -520,6 +527,7 @@ def main() -> None:
             agent.model = make_model(cfg, on_delta=StreamPrinter())
             # Role default beats provider pin; /think overrides both.
             agent.model.think = sw.think or cfg.get("think")
+            agent.max_tool_chars = cfg.get("max_tool_chars", 2000)
             window = cfg.get("context_window", 0)
             active_agent = name
             # /compact precedent: memory carries the history over; the on-disk
