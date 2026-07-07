@@ -26,8 +26,8 @@ Read [docs/ROADMAP.md](docs/ROADMAP.md) before doing anything. It holds the full
 | Thing | Choice | Notes |
 |---|---|---|
 | Language | Python 3.11+ | Managed with `uv` |
-| Primary dev model | Local via Ollama | RTX 3050 Ti Laptop, 4 GB VRAM → `qwen3:4b-instruct` (re-crowned 2026-07-07 vs phi4-mini/gemma3:4b — both fail tool-calling; note 21). Tuned machine-wide (2.15): `OLLAMA_FLASH_ATTENTION=1` + `OLLAMA_KV_CACHE_TYPE=q8_0` = +13 % gen speed; window `OLLAMA_CONTEXT_LENGTH=8192` is the hard ceiling on this card |
-| Fallback dev model | Gemini API (flash / flash-lite) | Via its OpenAI-compatible endpoint. ~$19 of credit total — guard it |
+| **Primary target model** | Gemini flash tier (1M context) | **Flipped 2026-07-08 (owner decision, ROADMAP3 §0).** Two lanes: quality = `gemini-2.5-flash` (museum baselines, labs, flash-facing acceptance); regression = `gemini-2.5-flash-lite` + local. Budget relaxed 2026-07-08 (owner: "use my all gemini as you want") — the meter still records $/run, and loop-logic bugs still get debugged locally at $0 |
+| Debug/fun model | Local via Ollama | RTX 3050 Ti Laptop, 4 GB VRAM → `qwen3:4b-instruct` (re-crowned 2026-07-07 vs phi4-mini/gemma3:4b — both fail tool-calling; note 21). Tuned machine-wide (2.15): `OLLAMA_FLASH_ATTENTION=1` + `OLLAMA_KV_CACHE_TYPE=q8_0` = +13 % gen speed; window `OLLAMA_CONTEXT_LENGTH=8192` is the hard ceiling on this card. *"Optimize my local for fun, not for real work"* |
 | Wire protocol | Loop speaks OpenAI-style; adapters translate | Gemini via its OpenAI-compat endpoint; **Ollama via its native `/api/chat` since 2.12** (the only wire where `think` works — note 18); Anthropic native. Three adapters in `src/harness/providers/` |
 | Anthropic API | Adapter built (2.1), live-untested | `ANTHROPIC_API_KEY` stays **unset** until the owner sets it deliberately for a live smoke test (a stray key silently bills pay-as-you-go) — see docs/problem.md |
 
@@ -40,7 +40,8 @@ Layout: **code** under `src/`, **docs** under `docs/`, **frozen/experimental** u
 | Path | What it is |
 |---|---|
 | `docs/ROADMAP.md` | The plan. Stages 0–3, exit criteria, reference shelf |
-| `docs/ROADMAP2.md` | **Stage 2R — frontier parity, the current work.** Modes → agents → reasoning → web_fetch+diff → skills → local lab → MCP stretch |
+| `docs/ROADMAP2.md` | Stage 2R — frontier parity (closed 2026-07-08). Modes → agents → reasoning → web_fetch+diff → skills → local lab; MCP deferred |
+| `docs/ROADMAP3.md` | **Stage 2C — the cognitive core, the current work.** Museum → backbone → ladder → voice+effort → thinking lab → observations → orientation → anchors |
 | `docs/notes/` | Design notes — one per feature, written *before* implementing. The **why** |
 | `docs/problem.md` | Open problems needing the owner — check when returning to the project |
 | `docs/harness-context-v3.md` | Legacy brief (see below) |

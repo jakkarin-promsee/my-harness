@@ -41,6 +41,7 @@ Everything else — permissions, compaction, subagents, sessions, slash commands
 | 1 | MVP | Can I build the minimal loop that does real work? | ~1–2 weekends |
 | 2 | Copy the seniors | What do mature harnesses have that mine doesn't — and why? | The long middle; one feature per cycle |
 | 2R | Frontier parity (round two) | What did the frontier *converge on* that mine still lacks? Plan: [ROADMAP2.md](ROADMAP2.md) | 7 features (2.10–2.16), one per cycle |
+| 2C | The cognitive core | The plumbing is frontier-shaped — why does the agent still *feel* dumb on real tasks? Plan: [ROADMAP3.md](ROADMAP3.md) | 9 cycles (2.17–2.23), one per cycle |
 | 3 | Make it mine | Now that the base is boring, how do I kill my three pains? | One pain at a time |
 
 Each stage has **exit criteria**. Do not start stage N+1 before stage N's criteria pass. Inside Stage 2, features follow a fixed mini-cycle: *study 2–3 references → 1-page design note in `docs/notes/` → implement → acceptance suite green.*
@@ -178,6 +179,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 | 1 — MVP | **done** — acceptance green on Gemini (B also local); walkthrough folded into Stage 2 reviews | 2026-07-06 | 2026-07-06 |
 | 2 — Copy the seniors | **done** — features 2.0–2.9 complete; exit gate 7/7 on gemini-2.5-flash-lite AND local qwen3:4b-instruct | 2026-07-06 | 2026-07-07 |
 | 2R — Frontier parity | **done** — 2.10–2.15 shipped, exit gate 11/11 on BOTH providers; 2.16 MCP deferred with reason (owner 2026-07-08, see [ROADMAP2.md](ROADMAP2.md) tracker) | 2026-07-07 | 2026-07-08 |
-| 3 — Make it mine | queued behind 2R (owner decision 2026-07-07: reach frontier parity first) | — | — |
+| 2C — Cognitive core | **approved & in progress** — plan in [ROADMAP3.md](ROADMAP3.md); primary target flips to the Gemini flash tier (owner 2026-07-08) | 2026-07-08 | — |
+| 3 — Make it mine | queued behind 2C (owner decisions 2026-07-07 + 2026-07-08: parity first, then the cognitive core) | — | — |
 
 *(Update this table and the "Current status" line in [CLAUDE.md](CLAUDE.md) as milestones complete.)*
