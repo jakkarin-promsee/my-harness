@@ -31,3 +31,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [22-failure-museum](22-failure-museum.md) | 2.17: real failed tasks from `sessions/` frozen as fixtures (one hold-out); the flash wire probes — `"none"` works, thinking is derivable as `total−prompt−completion` |
 | [23-backbone](23-backbone.md) | 2.18a: system prompt v2 — six tagged sections every role extends (`backbone: false` opts out); "keep answers short" dies; local museum M2 flipped 0/3→3/3 |
 | [24-prompt-ladder](24-prompt-ladder.md) | 2.18b: MICRO/COMPACT/STANDARD/FULL over one file — same-name sections replace; measured 264/580/660/854; `/prompt`; spawn-time assembly |
+| [25-voice-and-effort](25-voice-and-effort.md) | 2.19: `/voice quiet\|normal\|explain` (Gemini default = explain — flipped M2 on flash, ×2.3 output) + `/think off` → `reasoning_effort:"none"` (0 think proven) + the derived think meter |

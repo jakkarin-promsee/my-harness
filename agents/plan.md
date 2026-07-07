@@ -1,6 +1,9 @@
 ---
 description: Investigate and propose - never edit. Read-only planning agent.
 mode: explore
+# The role mandates its own closing line - explain's "close with a summary"
+# fights it (measured: flash-lite lost the handoff under explain, note 25).
+voice: normal
 # model: gemini    # uncomment to pin planning to the smarter paid model
 ---
 PLANNING mode - this OVERRIDES the operator mission above:

@@ -30,6 +30,11 @@ SECTION_MARK = re.compile(r"<!--\s*section:\s*([\w-]+)\s*(?:tier:\s*(\w+)\s*)?--
 # The ladder (note 24): a section is included when its tag <= the active tier.
 TIERS = ("micro", "compact", "standard", "full")
 
+# The voice knob (note 25): `style-<voice>` sections collapse into ONE style
+# slot; the active voice picks which. Effort is the OTHER knob - it lives on
+# the wire (providers), not in the prompt. Two axes, orthogonal by design.
+VOICES = ("quiet", "normal", "explain")
+
 
 def parse_sections(text: str) -> list[tuple[str, str, str]]:
     """Backbone text -> [(name, tier, body), ...]. Text before the first
@@ -45,20 +50,28 @@ def parse_sections(text: str) -> list[tuple[str, str, str]]:
     return sections
 
 
-def load_backbone(tier: str = "standard") -> str:
-    """The assembled backbone at a tier: sections whose tag <= tier, markers
-    stripped, one blank line between sections. Same-name sections replace —
-    the highest applicable tier wins, at the position of first appearance
-    (so `loop` shows its one-liner at micro and the full protocol at
-    standard+, from the same file). Unknown tier -> ValueError, loudly:
-    a typo'd tier silently degrading the prompt would be a debugging pit."""
+def load_backbone(tier: str = "standard", voice: str = "normal") -> str:
+    """The assembled backbone at a tier and voice: sections whose tag <= tier,
+    markers stripped, one blank line between sections. Same-name sections
+    replace — the highest applicable tier wins, at the position of first
+    appearance (so `loop` shows its one-liner at micro and the full protocol
+    at standard+, from the same file). `style-<x>` sections collapse into the
+    one `style` slot matching the active voice (note 25). Unknown tier/voice
+    -> ValueError, loudly: a typo silently degrading the prompt would be a
+    debugging pit."""
     if tier not in TIERS:
         raise ValueError(f"unknown tier {tier!r} (choose from {', '.join(TIERS)})")
+    if voice not in VOICES:
+        raise ValueError(f"unknown voice {voice!r} (choose from {', '.join(VOICES)})")
     active = TIERS.index(tier)
     text = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
     order: list[str] = []
     chosen: dict[str, tuple[int, str]] = {}  # name -> (rank, body)
     for name, tag, body in parse_sections(text):
+        if name.startswith("style-"):
+            if name != f"style-{voice}":
+                continue
+            name = "style"  # every voice competes for the same slot
         rank = TIERS.index(tag) if tag in TIERS else TIERS.index("standard")
         if rank > active:
             continue
@@ -94,22 +107,25 @@ def build_env_block(cwd: str) -> str:
 
 
 def build_system_prompt(cwd: str | None = None, template: str | None = None,
-                        backbone: bool = True, tier: str = "standard") -> str:
-    """Assemble the system prompt (notes 23 + 24). `template` is the active
-    role's body (note 17); since 2.18a it EXTENDS the backbone instead of
-    replacing it — the backbone is exactly the part no role should lose.
+                        backbone: bool = True, tier: str = "standard",
+                        voice: str = "normal") -> str:
+    """Assemble the system prompt (notes 23 + 24 + 25). `template` is the
+    active role's body (note 17); since 2.18a it EXTENDS the backbone instead
+    of replacing it — the backbone is exactly the part no role should lose.
     `backbone=False` restores replace semantics (the `chill` role: an
     "operates the computer" identity is nonsense in a mode where tools aren't
     even sent). `tier` picks the ladder rung (note 24): micro for the 8K
-    card, standard for the Gemini lanes, full for max scaffolding.
+    card, standard for the Gemini lanes, full for max scaffolding. `voice`
+    picks the style section (note 25): explain is the Gemini default — the
+    anti-terseness the owner asked for.
     replace(), not format(): an agent prompt containing {braces} must not
     crash the assembly. A template without the placeholder gets the env
     block appended, so plain prose files work unmodified."""
     cwd = cwd or os.getcwd()
     if template is None:
-        prompt = load_backbone(tier)  # the built-in `build` role IS the backbone
+        prompt = load_backbone(tier, voice)  # the built-in `build` role IS the backbone
     elif backbone:
-        prompt = load_backbone(tier) + "\n\n# Active role\n" + template.strip()
+        prompt = load_backbone(tier, voice) + "\n\n# Active role\n" + template.strip()
     else:
         prompt = template
     env = build_env_block(cwd)

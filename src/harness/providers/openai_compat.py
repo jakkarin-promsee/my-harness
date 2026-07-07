@@ -137,10 +137,12 @@ class OpenAICompatModel:
         # "content" fragments as they arrive, one "end" when the stream closes.
         # None = the classic one-shot request; behavior is identical.
         self.on_delta = on_delta
-        # /think knob (docs/notes/18): off|on|low|medium|high, or None = never
-        # send anything. Maps to reasoning_effort on this wire; "off" is
-        # OMITTED because our compat providers (gemini flash-lite) default to
-        # thinking-off — a thinking-DEFAULT model would need more than this.
+        # /think knob (docs/notes/18 + 25): off|on|low|medium|high, or None =
+        # never send anything. Maps to reasoning_effort on this wire. Since
+        # 2.19, "off" sends "none" — the off-switch for thinking-DEFAULT
+        # models (gemini flash); probe (a) in note 22 confirmed the wire
+        # honors it. None stays "send nothing": flash-lite shouldn't pay
+        # for a param it doesn't need.
         self.think = None
 
     def body(self, messages: list, tools: list) -> dict:
@@ -158,8 +160,9 @@ class OpenAICompatModel:
             # loop) — overruns end as finish_reason "length".
             "max_tokens": self.max_tokens,
         }
-        if self.think and self.think != "off":
-            body["reasoning_effort"] = "medium" if self.think == "on" else self.think
+        if self.think:
+            body["reasoning_effort"] = {"on": "medium", "off": "none"}.get(
+                self.think, self.think)
         if self.on_delta:
             body["stream"] = True
             # Without this the stream carries no token counts at all.

@@ -65,15 +65,28 @@ def test_tool_calls_survive_normalization_untouched():
     assert reply["finish_reason"] == "tool_calls"
 
 
-# ---- 2.12: think -> reasoning_effort mapping (docs/notes/18) ----------------
+# ---- 2.12: think -> reasoning_effort mapping (docs/notes/18, updated 2.19) --
 
 def test_think_maps_to_reasoning_effort():
     from harness.providers.openai_compat import OpenAICompatModel
     m = OpenAICompatModel("http://x/v1", "k", "model")
     assert "reasoning_effort" not in m.body([], [])   # None -> never sent
     m.think = "off"
-    assert "reasoning_effort" not in m.body([], [])   # flash-lite defaults off
+    # 2.19 (note 25): "off" now sends "none" - the off-switch for
+    # thinking-DEFAULT models (flash); probe (a) confirmed the wire honors it.
+    assert m.body([], [])["reasoning_effort"] == "none"
     m.think = "on"
     assert m.body([], [])["reasoning_effort"] == "medium"
     m.think = "high"
     assert m.body([], [])["reasoning_effort"] == "high"
+
+
+def test_think_off_sends_reasoning_effort_none():
+    # 2.19 (note 25): the off-switch for thinking-DEFAULT models (flash).
+    # Probe (a) in note 22 confirmed the wire honors "none".
+    from harness.providers.openai_compat import OpenAICompatModel
+    m = OpenAICompatModel("http://x", "k", "gemini-2.5-flash")
+    m.think = "off"
+    assert m.body([], [])["reasoning_effort"] == "none"
+    m.think = None  # the default still sends NOTHING (flash-lite pays for no param)
+    assert "reasoning_effort" not in m.body([], [])

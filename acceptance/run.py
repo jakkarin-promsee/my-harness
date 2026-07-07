@@ -270,11 +270,15 @@ def parse_args() -> argparse.Namespace:
                    help="run only this task id (repeatable)")
     p.add_argument("--include-holdout", action="store_true",
                    help="run the museum hold-out - STAGE CLOSE ONLY (red-team #13)")
+    p.add_argument("--voice", choices=("quiet", "normal", "explain"), default=None,
+                   help="override the provider's voice default (note 25 A/B)")
+    p.add_argument("--think", choices=("off", "on", "low", "medium", "high"), default=None,
+                   help="set the model's reasoning effort (2.19; the 2.20 grid)")
     return p.parse_args()
 
 
 def run_once(task: dict, model, modes, specs, on_usage,
-             tier: str = "standard") -> tuple[bool, str]:
+             tier: str = "standard", voice: str = "normal") -> tuple[bool, str]:
     """One fresh Agent + messages list for one task run. The 2.17 refactor
     only extracted this from main()'s old body - the per-run machinery
     (fresh gate, spawn tool, todo list) is unchanged."""
@@ -293,7 +297,8 @@ def run_once(task: dict, model, modes, specs, on_usage,
         {"role": "system", "content": build_system_prompt(
             template=spec.prompt if spec else None,
             backbone=spec.backbone if spec else True,
-            tier=spec.tier or tier if spec else tier)},
+            tier=(spec.tier or tier) if spec else tier,
+            voice=(spec.voice or voice) if spec else voice)},
         {"role": "user", "content": task["prompt"]},
     ]
     spawn_fn, spawn_schema = make_spawn_tool(
@@ -370,8 +375,12 @@ def main() -> None:
         return (u["in"] * pin + (u["out"] + u["think"]) * pout) / 1e6
 
     tier = provider.get("tier", "standard")
+    voice = args.voice or provider.get("voice", "normal")
+    if args.think:
+        model.think = args.think  # rides every call this run (2.19/2.20)
     print(f"=== acceptance | provider: {args.provider} | model: {provider['model']}"
-          f" | suite: {args.suite} | n={args.n} | tier: {tier} ===")
+          f" | suite: {args.suite} | n={args.n} | tier: {tier} | voice: {voice}"
+          + (f" | think: {args.think}" if args.think else "") + " ===")
     results = []  # (task_id, [(ok, note, usage, secs), ...])
     for task in tasks:
         runs = []
@@ -379,7 +388,7 @@ def main() -> None:
             run_usage.update({"in": 0, "out": 0, "think": 0})
             print(f"\n--- {task['id']} (run {i + 1}/{args.n}) ---")
             t0 = time.monotonic()
-            ok, note = run_once(task, model, modes, specs, on_usage, tier)
+            ok, note = run_once(task, model, modes, specs, on_usage, tier, voice)
             secs = time.monotonic() - t0
             usage = dict(run_usage)
             runs.append((ok, note, usage, secs))

@@ -108,6 +108,7 @@ Everything below happens inside `uv run harness [provider]`. Type a task at the
 | `/agent` · `/agent NAME` | list roles / switch role (prompt + default mode + pinned model) |
 | `/think` · `/think VALUE` | show / set reasoning: `off` `on` `low` `medium` `high` |
 | `/prompt` · `/prompt TIER` | show the prompt-ladder tiers with measured token costs / switch (`micro` `compact` `standard` `full`) — local defaults to `micro`, Gemini to `standard` |
+| `/voice` · `/voice NAME` | how much the agent talks: `quiet` (scripted runs) · `normal` (local default) · `explain` (Gemini default — narrates the plan, teaches as it goes, closes with a verified summary) |
 | `/tokens` | context size vs. the model's window |
 | `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file) |
 | `/NAME args` | anything else runs `commands/NAME.md` with `{{args}}` substituted |
@@ -155,8 +156,10 @@ Design: [note 17](docs/notes/17-agents.md).
 
 `/think on` makes a capable model reason in a **separated trace**: streamed dim to your
 terminal, then *stripped from history* so it never bills a later call. `/think off`
-suppresses it; `low/medium/high` set effort on models with levels (gpt-oss-class,
-Gemini, Anthropic budgets).
+suppresses it — since 2.19 this really is an off-switch on Gemini (`reasoning_effort:
+"none"`), which matters because **flash thinks by default and bills it invisibly**: the
+meter's `N think` count (derived as `total − prompt − completion`) is how you see it.
+`low/medium/high` set effort on models with levels (gpt-oss-class, Gemini, Anthropic budgets).
 
 Why the default is off locally, in one measured line: thinking qwen3 burned **10× the
 tokens for a worse score** (13,614 vs 1,460; 5/7 vs 7/7). And mind the fine print: this

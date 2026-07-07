@@ -79,3 +79,10 @@ def test_tier_frontmatter_rides_the_spec():
     spec = parse_agent_file("x", "---\ntier: full\n---\nbody")
     assert spec.tier == "full"
     assert parse_agent_file("y", "---\ndescription: d\n---\nbody").tier is None
+
+
+def test_voice_frontmatter_rides_the_spec():
+    # 2.19 (note 25): a role may pin its voice.
+    from harness.core.agents import parse_agent_file
+    assert parse_agent_file("x", "---\nvoice: explain\n---\nbody").voice == "explain"
+    assert parse_agent_file("y", "---\ndescription: d\n---\nbody").voice is None

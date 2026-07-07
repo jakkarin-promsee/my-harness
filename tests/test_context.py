@@ -19,7 +19,9 @@ def test_backbone_sections_and_their_tiers():
     assert parsed == [
         ("identity", "micro"), ("loop", "micro"), ("loop", "standard"),
         ("safety", "micro"), ("tools", "compact"), ("failure", "compact"),
-        ("verification", "compact"), ("style", "micro"), ("examples", "full"),
+        ("verification", "compact"), ("style-quiet", "micro"),
+        ("style-normal", "micro"), ("style-explain", "micro"),
+        ("examples", "full"),
     ]
 
 
@@ -142,3 +144,26 @@ def test_template_with_placeholder_is_substituted(tmp_path):
     prompt = context.build_system_prompt(str(tmp_path), template="X\nEnvironment:\n{env_block}")
     assert "{env_block}" not in prompt
     assert str(tmp_path) in prompt
+
+
+# --- the voice knob (2.19, note 25) ----------------------------------------
+
+def test_exactly_one_style_section_per_voice():
+    for voice in context.VOICES:
+        bb = context.load_backbone("micro", voice=voice)
+        assert bb.count("Communication style") == 1, voice
+
+
+def test_explain_voice_swaps_the_style_text():
+    explain = context.load_backbone("standard", voice="explain")
+    assert "narrate generously" in explain.lower()
+    normal = context.load_backbone("standard", voice="normal")
+    assert "narrate generously" not in normal.lower()
+    quiet = context.load_backbone("standard", voice="quiet")
+    assert "never\nskip it" in quiet or "never skip it" in quiet  # the 2.9a floor
+
+
+def test_unknown_voice_raises_loudly():
+    import pytest
+    with pytest.raises(ValueError):
+        context.load_backbone("standard", voice="shakespeare")
