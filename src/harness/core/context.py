@@ -1,9 +1,10 @@
 """Context assembly: the first message is assembled, never hardcoded.
 
-Three layers (docs/notes/06-context-assembly.md):
+Four layers (docs/notes/06-context-assembly.md + 20-skills.md):
 identity/rules from prompts/system.md (edit behavior = edit a text file),
 an environment block (facts the model shouldn't burn a tool call asking),
-and AGENTS.md project memory when the working directory has one.
+AGENTS.md project memory when the working directory has one, and one line
+per skill from skills/ (the model reads a skill's body only on activation).
 """
 
 import os
@@ -11,6 +12,8 @@ import platform
 import subprocess
 import time
 from pathlib import Path
+
+from harness.core import skills as skills_lib
 
 PROMPTS_DIR = Path(__file__).resolve().parent.parent / "prompts"
 
@@ -58,4 +61,9 @@ def build_system_prompt(cwd: str | None = None, template: str | None = None) -> 
             "\n\nProject notes (from AGENTS.md in the working directory):\n"
             + agents_md.read_text(encoding="utf-8")
         )
+    # Skills: one name+description line each (note 20). Every role and every
+    # subagent rides this same pipeline, so all of them see the library.
+    block = skills_lib.skills_block(skills_lib.discover(str(Path(cwd) / "skills")))
+    if block:
+        prompt += "\n\n" + block
     return prompt

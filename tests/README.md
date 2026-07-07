@@ -23,6 +23,7 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 | `test_anthropic.py` | the six-way translation round-trip; think→budgets (2.12) |
 | `test_permissions.py` | allow/ask/deny + deny > ask > allow; modes + the cwd scoping rule (2.10) |
 | `test_agents.py` | role frontmatter parsing + discovery (2.11) |
+| `test_skills.py` | skill discovery + the injection block; skip rules (2.14) |
 | `test_session.py` | JSONL append / load / resume |
 | `test_context.py` | system-prompt assembly |
 | `test_budget.py` | token estimate + `/compact` |

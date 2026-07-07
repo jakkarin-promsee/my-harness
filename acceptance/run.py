@@ -14,6 +14,7 @@ the full stack against a live model — both must be green to exit Stage 2.
 """
 
 import os
+import shutil
 import subprocess
 import sys
 
@@ -116,6 +117,41 @@ def verify_web_fetch(final: str):
     return ok, "heading fetched and reported" if ok else f"answer: {final[:100]!r}"
 
 
+# The fixture skill for task K: a house format the model cannot guess — it
+# must notice the skill from its one description line, read the body, obey.
+STAMP_SKILL = """---
+name: stamp-files
+description: The required house format for stamp files. The format is exact and cannot be guessed - read this skill before creating any .stamp file.
+---
+Every stamp file in this project MUST follow this exact format:
+1. The first line is exactly: STAMP v2
+2. The second line is the requested content, in UPPERCASE.
+No other lines.
+"""
+
+
+def setup_skill_fixture():
+    os.makedirs("skills/stamp-files", exist_ok=True)
+    with open("skills/stamp-files/SKILL.md", "w", encoding="utf-8") as f:
+        f.write(STAMP_SKILL)
+
+
+def cleanup_skill_fixture():
+    shutil.rmtree("skills/stamp-files", ignore_errors=True)
+    rm("probe.stamp")
+
+
+def verify_skill_trigger(final: str):
+    # Reality: the file must match the house format the skill mandates —
+    # provable only if the model read skills/stamp-files/SKILL.md and obeyed.
+    if not os.path.exists("probe.stamp"):
+        return False, "probe.stamp was not created"
+    with open("probe.stamp", encoding="utf-8") as f:
+        lines = f.read().strip().splitlines()
+    ok = len(lines) == 2 and lines[0] == "STAMP v2" and lines[1] == "BANANA"
+    return ok, "house format followed" if ok else f"file was: {lines!r}"
+
+
 TASKS = [
     {
         "id": "A-create-and-run",
@@ -189,6 +225,16 @@ TASKS = [
             "the exact text of the page's main heading."
         ),
         "verify": verify_web_fetch,
+    },
+    {
+        # 2.14: the model must notice the fixture skill from its description
+        # line in the system prompt, read its SKILL.md, and follow the house
+        # format — the prompt never names the skill or its path.
+        "id": "K-skill-trigger",
+        "prompt": "Create a stamp file named probe.stamp containing the word banana.",
+        "setup": setup_skill_fixture,
+        "verify": verify_skill_trigger,
+        "cleanup": cleanup_skill_fixture,
     },
 ]
 

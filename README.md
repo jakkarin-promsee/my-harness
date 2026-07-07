@@ -38,21 +38,22 @@ the trust (Stage 3).
 | **Visible mind** | Thinking and narration stream live to the terminal, so you watch it reason and talk instead of staring at a spinner. |
 | **Modes** | Switchable permission profiles — from "just chat" to "auto-approve writes in this folder" (see the guidebook below). |
 | **Agents (roles)** | Markdown-defined personalities with their own prompt, default mode, and optionally their own model. |
+| **Skills** | `skills/*/SKILL.md` — procedures the **model** discovers from one description line and reads on demand (the open Agent Skills standard). |
 | **Reasoning control** | `/think off…high` — the chain-of-thought budget knob, per session or per role. |
 | **Permissions** | [`harness.toml`](harness.toml) decides per tool: allow / ask / deny. Deny is absolute in every mode. |
 | **Token meter** | Every call reports tokens. The project exists because of context economics, so the cost is always on screen. |
 
 ## Status
 
-**Stage 2R (frontier parity) in progress — 2.10–2.13 shipped 2026-07-07.** The harness
-runs end-to-end on both providers with modes, roles, reasoning control, and web fetch.
+**Stage 2R (frontier parity) in progress — 2.10–2.14 shipped 2026-07-07.** The harness
+runs end-to-end on both providers with modes, roles, reasoning control, web fetch, and skills.
 
-- **129 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
-- **Exit gate 10/10 on both providers** (`uv run python acceptance/run.py <provider>`):
+- **136 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
+- **Exit gate 11/11 on both providers** (`uv run python acceptance/run.py <provider>`):
   local qwen3:4b-instruct and gemini-2.5-flash-lite — including "explore mode blocks a
-  write", "the plan role proposes without touching anything", and "answer from a fetched page".
+  write", "answer from a fetched page", and "a skill's house format is read, never guessed".
 
-Remaining in 2R: skills (2.14), the local speed lab (2.15), MCP as a stretch (2.16) —
+Remaining in 2R: the local speed lab (2.15), MCP as a stretch (2.16) —
 then **Stage 3** turns the three pains above into real features.
 Plans: [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/ROADMAP2.md](docs/ROADMAP2.md).
 

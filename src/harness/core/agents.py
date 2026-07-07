@@ -34,7 +34,7 @@ class AgentSpec:
 
 
 def parse_agent_file(name: str, text: str) -> AgentSpec:
-    meta, body = _split_frontmatter(text)
+    meta, body = split_frontmatter(text, KNOWN_KEYS)
     return AgentSpec(
         name=name,
         prompt=body.strip(),
@@ -45,9 +45,10 @@ def parse_agent_file(name: str, text: str) -> AgentSpec:
     )
 
 
-def _split_frontmatter(text: str) -> tuple[dict, str]:
+def split_frontmatter(text: str, known_keys: set) -> tuple[dict, str]:
     """'---\\nkey: value\\n---\\nbody' -> ({key: value}, body).
-    No opening fence -> no frontmatter, the whole file is body."""
+    No opening fence -> no frontmatter, the whole file is body.
+    Shared with skills.py (note 20) — one parser, one home."""
     if not text.startswith("---"):
         return {}, text
     first_newline = text.find("\n")
@@ -61,7 +62,7 @@ def _split_frontmatter(text: str) -> tuple[dict, str]:
             continue
         key, _, value = line.partition(":")
         key, value = key.strip(), value.strip()
-        if key in KNOWN_KEYS and value:
+        if key in known_keys and value:
             meta[key] = value
     body = text[end + len("\n---"):]
     return meta, body

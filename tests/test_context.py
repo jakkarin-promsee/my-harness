@@ -30,6 +30,23 @@ def test_missing_agents_md_is_silently_fine(tmp_path):
     assert "Project notes" not in prompt
 
 
+def test_skills_block_is_included_when_skills_exist(tmp_path):
+    # 2.14: a skill's name+description line rides the assembly; the body doesn't.
+    d = tmp_path / "skills" / "stamp-files"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text(
+        "---\ndescription: House format for stamp files.\n---\nSECRET BODY",
+        encoding="utf-8",
+    )
+    prompt = context.build_system_prompt(str(tmp_path))
+    assert "stamp-files" in prompt and "House format" in prompt
+    assert "SECRET BODY" not in prompt  # progressive disclosure: body loads on read
+
+
+def test_missing_skills_dir_adds_nothing(tmp_path):
+    assert "Skills (" not in context.build_system_prompt(str(tmp_path))
+
+
 def test_template_override_appends_env_and_survives_braces(tmp_path):
     # 2.11: an agent body with {braces} must not crash the assembly, and a
     # template without the placeholder still gets the environment appended.

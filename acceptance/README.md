@@ -13,6 +13,6 @@ uv run python acceptance/run.py gemini     # spends Gemini credit — quality ch
 
 ## The tasks
 
-`A` create-and-run · `B` read-and-report · `C` find-fix-prove (the on-purpose bug in `archive/mvp/fixtures/stats.py`) · `D` grep · `E` exact-edit · `F` glob · `G` subagent · `H` mode-explore (2.10: a write in read-only `explore` mode must come back permission-denied — a task can set `"mode"` to run under any profile) · `I` agent-plan (2.11: a task can set `"agent"` to run under any role; the plan role must offer the handoff) · `J` web-fetch (2.13: answer from a real page — needs internet). **All green = gate green.**
+`A` create-and-run · `B` read-and-report · `C` find-fix-prove (the on-purpose bug in `archive/mvp/fixtures/stats.py`) · `D` grep · `E` exact-edit · `F` glob · `G` subagent · `H` mode-explore (2.10: a write in read-only `explore` mode must come back permission-denied — a task can set `"mode"` to run under any profile) · `I` agent-plan (2.11: a task can set `"agent"` to run under any role; the plan role must offer the handoff) · `J` web-fetch (2.13: answer from a real page — needs internet) · `K` skill-trigger (2.14: a fixture skill's house format must be read and obeyed, never guessed). **All green = gate green.**
 
 **Budget rule:** debug on `ollama` (a runaway loop costs $0), validate quality on `gemini`. `anthropic` stays untested until `ANTHROPIC_API_KEY` is set deliberately (`docs/problem.md`). Run logs land at `acceptance-*.log` (gitignored).
