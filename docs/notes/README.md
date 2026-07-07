@@ -27,3 +27,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [18-reasoning-control](18-reasoning-control.md) | 2.12: `/think` knob; the native `/api/chat` dialect (v1 ignores `think`); the economics |
 | [19-web-and-diff](19-web-and-diff.md) | 2.13: `web_fetch` (stdlib HTML→text, two-belt truncation) + the unified-diff `ask` prompt |
 | [20-skills](20-skills.md) | 2.14: `skills/*/SKILL.md` — one description line at startup, body on `read_file` (progressive disclosure for free) |
+| [21-local-lab](21-local-lab.md) | 2.15 lab log: FA + q8_0 KV = +13 % speed, not more context (weights overflow the card); bake-off — incumbent holds |

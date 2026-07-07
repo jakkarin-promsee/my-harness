@@ -187,7 +187,7 @@ One command, two providers, like Stage 2:
 | 2.12 Reasoning control | **done** 2026-07-07 — note 18; new native `/api/chat` adapter (v1 provably ignores `think`); gate 9/9 on BOTH providers; think-lab economics recorded |
 | 2.13 web_fetch + diff gate | **done** 2026-07-07 — note 19; gate 10/10 on BOTH providers (new task J: fetch example.com, report the heading); diff gate proven by pytest snapshots (`tests/test_repl.py`) |
 | 2.14 Skills | **done** 2026-07-07 — note 20; gate 11/11 on BOTH providers (new task K: fixture skill's house format read and obeyed, never guessed); trigger lesson: Rules-section instruction + "cannot be guessed" descriptions |
-| 2.15 Local lab | not started |
+| 2.15 Local lab | **done** 2026-07-07 — note 21 (lab log); FA+q8_0 applied machine-wide: +13 % gen speed, ctx ceiling stays 8,192 (weights overflow the card — quant buys placement, not window); bake-off: incumbent holds, phi4-mini + gemma3:4b both fail at smoke; gate 11/11 on tuned config |
 | 2.16 MCP client (stretch) | not started |
 
 *(Approved 2026-07-07 — pointers live in ROADMAP.md's stage tables and CLAUDE.md's status line + repo map. Update this tracker and the CLAUDE.md status line as features land.)*
