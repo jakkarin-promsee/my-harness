@@ -18,19 +18,22 @@ without frontmatter is all prompt.
 from pathlib import Path
 
 # The knobs an agent file may set. `think` is parsed now, applied in 2.12.
-KNOWN_KEYS = {"description", "model", "mode", "think"}
+KNOWN_KEYS = {"description", "model", "mode", "think", "backbone"}
 
 
 class AgentSpec:
     def __init__(self, name: str, prompt: str, description: str = "",
                  model: str | None = None, mode: str | None = None,
-                 think: str | None = None):
+                 think: str | None = None, backbone: bool = True):
         self.name = name
         self.prompt = prompt          # the system prompt body (env appended at assembly)
         self.description = description
         self.model = model            # provider name to pin, or None = session default
         self.mode = mode              # default permission profile, or None = leave as-is
         self.think = think            # default reasoning level (2.12), or None
+        # Roles EXTEND the backbone by default (note 23); `backbone: false`
+        # opts out - for roles where an operator identity is nonsense (chill).
+        self.backbone = backbone
 
 
 def parse_agent_file(name: str, text: str) -> AgentSpec:
@@ -42,6 +45,7 @@ def parse_agent_file(name: str, text: str) -> AgentSpec:
         model=meta.get("model"),
         mode=meta.get("mode"),
         think=meta.get("think"),
+        backbone=meta.get("backbone", "").lower() not in {"false", "no", "off"},
     )
 
 

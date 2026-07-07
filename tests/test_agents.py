@@ -61,3 +61,13 @@ def test_repo_agents_ship_the_roles():
     assert specs["plan"].mode == "explore"
     # Budget rule: no shipped role pins a provider by default.
     assert all(s.model is None for s in specs.values())
+
+
+def test_backbone_frontmatter_opt_out():
+    # 2.18a (note 23): roles extend the backbone by default; only an explicit
+    # `backbone: false` opts out - and the shipped chill role does exactly that.
+    from harness.core.agents import parse_agent_file
+    spec = parse_agent_file("x", "---\nbackbone: false\n---\nbody")
+    assert spec.backbone is False
+    spec = parse_agent_file("y", "---\ndescription: d\n---\nbody")
+    assert spec.backbone is True

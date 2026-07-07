@@ -29,3 +29,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [20-skills](20-skills.md) | 2.14: `skills/*/SKILL.md` — one description line at startup, body on `read_file` (progressive disclosure for free) |
 | [21-local-lab](21-local-lab.md) | 2.15 lab log: FA + q8_0 KV = +13 % speed, not more context (weights overflow the card); bake-off — incumbent holds |
 | [22-failure-museum](22-failure-museum.md) | 2.17: real failed tasks from `sessions/` frozen as fixtures (one hold-out); the flash wire probes — `"none"` works, thinking is derivable as `total−prompt−completion` |
+| [23-backbone](23-backbone.md) | 2.18a: system prompt v2 — six tagged sections every role extends (`backbone: false` opts out); "keep answers short" dies; local museum M2 flipped 0/3→3/3 |

@@ -283,10 +283,13 @@ def run_once(task: dict, model, modes, specs, on_usage) -> tuple[bool, str]:
     # auto_approve - deny still denies, in every mode.
     modeset = ModeSet(modes, active=task.get("mode", "build"))
     gate = make_gate(True, modeset)
-    # Per-task role (2.11): a named agent's body rides the same pipeline.
-    template = specs[task["agent"]].prompt if task.get("agent") else None
+    # Per-task role (2.11): a named agent's body rides the same pipeline;
+    # since 2.18a it extends the backbone unless the role opts out (note 23).
+    spec = specs[task["agent"]] if task.get("agent") else None
     messages = [
-        {"role": "system", "content": build_system_prompt(template=template)},
+        {"role": "system", "content": build_system_prompt(
+            template=spec.prompt if spec else None,
+            backbone=spec.backbone if spec else True)},
         {"role": "user", "content": task["prompt"]},
     ]
     spawn_fn, spawn_schema = make_spawn_tool(

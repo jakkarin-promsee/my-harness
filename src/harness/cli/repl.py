@@ -268,8 +268,10 @@ def main() -> None:
         sys.exit(f"unknown agent {active_agent!r} - available: {', '.join(sorted(agent_specs))}")
 
     def assemble(spec: roles.AgentSpec) -> str:
-        # Same 2.4 pipeline for every role: env block + AGENTS.md appended.
-        return build_system_prompt(template=spec.prompt or None)
+        # Same 2.4 pipeline for every role; since 2.18a a role EXTENDS the
+        # backbone unless its frontmatter says `backbone: false` (note 23).
+        return build_system_prompt(template=spec.prompt or None,
+                                   backbone=spec.backbone)
 
     store = SessionStore()
     if args.sessions:

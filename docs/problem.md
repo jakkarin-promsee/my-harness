@@ -1,7 +1,21 @@
 # Problems & owner decisions
 
 > Things an autonomous run could not finish alone, plus decisions that are
-> yours to make. Updated 2026-07-07. Delete items as you resolve them.
+> yours to make. Updated 2026-07-08. Delete items as you resolve them.
+
+## 2. Task K (skill-trigger) is fragile on flash-lite — was never robust (2026-07-08)
+
+Found while gating 2.18a: `K-skill-trigger` on `gemini-2.5-flash-lite` is
+majority-FAIL at N=3 under BOTH the old prompt (1/3) and the new backbone
+(0–1/3; loop-step fix and a harder skills header didn't move it). The 2R-era
+"11/11 both providers" pass was a single-run fluke — exactly the red-team #12
+problem the museum's N=3 rule now catches. On the lanes that matter it's
+solid: `gemini-2.5-flash` 3/3, local qwen3 passes. Verdict recorded as a
+MODEL limit (a "lite" model YOLOs one-step file tasks), not harness breakage;
+we refuse to overfit the prompt to the cheapest model (that's tuning on the
+test set). **Your call at stage close:** accept "core 10/11 + K known-flaky"
+as flash-lite's green bar, or drop K from the lite list (per-provider task
+lists exist since 2.17).
 
 ## 0. Ollama tray app needs a reboot (2026-07-07, from the 2.15 lab)
 
