@@ -64,10 +64,21 @@ def test_edit_error_flags_copied_line_number_prefix(tmp_path):
     assert "display-only" in out
 
 
-def test_list_dir_is_sorted_json(tmp_path):
-    (tmp_path / "b.txt").write_text("b")
-    (tmp_path / "a.txt").write_text("a")
-    assert json.loads(basic.list_dir(str(tmp_path))) == ["a.txt", "b.txt"]
+def test_list_dir_is_framed_dirs_first_with_sizes(tmp_path):
+    # 2.21b (note 28): dirs marked and first, files with sizes, counted header.
+    (tmp_path / "b.txt").write_text("bb")
+    (tmp_path / "a_dir").mkdir()
+    out = basic.list_dir(str(tmp_path)).splitlines()
+    assert out[0] == f"[list_dir] {tmp_path} - 2 entries (1 dirs, 1 files)"
+    assert out[1] == "a_dir/"
+    assert out[2] == "b.txt (2 B)"
+
+
+def test_list_dir_errors_teach_the_workflow(tmp_path):
+    assert "glob first" in basic.list_dir(str(tmp_path / "nope"))
+    fp = tmp_path / "f.txt"
+    fp.write_text("x")
+    assert "use read_file" in basic.list_dir(str(fp))
 
 
 def test_run_shell_captures_exit_code_and_output():
@@ -121,7 +132,13 @@ def test_grep_reports_bad_regex_as_error():
 def test_grep_caps_at_50_matches(tmp_path):
     (tmp_path / "big.txt").write_text("hit\n" * 80)
     out = basic.grep("hit", str(tmp_path))
-    assert "[stopped at 50 matches]" in out
+    assert out.splitlines()[0].startswith("[grep] 50+ (capped at 50) matches")
+
+
+def test_grep_zero_matches_suggests_next_move(tmp_path):
+    out = basic.grep("nothinghere", str(tmp_path))
+    assert out.startswith("[grep] 0 matches")
+    assert "glob" in out
 
 
 # ---- web_fetch (note 19): fake requests.get, zero network ----------------
@@ -153,7 +170,8 @@ def test_web_fetch_strips_html_and_prepends_title(monkeypatch):
             b"<body><h1>Heading</h1><p>Some    text\t\there.</p></body></html>")
     _serve(monkeypatch, FakeResponse(html))
     out = basic.web_fetch("https://example.test/")
-    assert out.startswith("Title: My Page")
+    assert out.splitlines()[0].startswith("[web_fetch] https://example.test/ - ")
+    assert out.splitlines()[1].startswith("Title: My Page")
     assert "Heading" in out and "Some text here." in out
     assert "secret" not in out and ".x{}" not in out  # script/style dropped
 
@@ -174,7 +192,9 @@ def test_web_fetch_refuses_binary_content(monkeypatch):
 
 def test_web_fetch_passes_plain_text_through(monkeypatch):
     _serve(monkeypatch, FakeResponse(b'{"answer": 42}', ctype="application/json"))
-    assert basic.web_fetch("https://example.test/api") == '{"answer": 42}'
+    out = basic.web_fetch("https://example.test/api")
+    assert out.splitlines()[0].startswith("[web_fetch]")
+    assert out.splitlines()[1] == '{"answer": 42}'
 
 
 def test_web_fetch_truncates_head_and_tail(monkeypatch):
@@ -182,8 +202,9 @@ def test_web_fetch_truncates_head_and_tail(monkeypatch):
     _serve(monkeypatch, FakeResponse(body, ctype="text/plain"))
     out = basic.web_fetch("https://example.test/big")
     assert "chars truncated" in out
-    assert out.startswith("S") and out.endswith("E")  # head AND tail survive
-    assert len(out) < basic.WEB_MAX_CHARS + 100
+    body = out.split("\n", 1)[1]  # below the [web_fetch] frame line
+    assert body.startswith("S") and body.endswith("E")  # head AND tail survive
+    assert len(out) < basic.WEB_MAX_CHARS + 150
 
 
 def test_web_fetch_turns_connection_errors_into_text(monkeypatch):
@@ -204,4 +225,6 @@ def test_glob_returns_newest_first(tmp_path):
     now = time.time()
     os.utime(old, (now - 100, now - 100))
     os.utime(new, (now, now))
-    assert json.loads(basic.glob("*.py", str(tmp_path))) == [str(new), str(old)]
+    out = basic.glob("*.py", str(tmp_path)).splitlines()
+    assert out[0].startswith("[glob] 2 files matching")
+    assert out[1:] == [str(new), str(old)]
