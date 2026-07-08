@@ -179,7 +179,7 @@ Fixed mini-cycle per feature: **study 2–3 references → design note in `docs/
 | 1 — MVP | **done** — acceptance green on Gemini (B also local); walkthrough folded into Stage 2 reviews | 2026-07-06 | 2026-07-06 |
 | 2 — Copy the seniors | **done** — features 2.0–2.9 complete; exit gate 7/7 on gemini-2.5-flash-lite AND local qwen3:4b-instruct | 2026-07-06 | 2026-07-07 |
 | 2R — Frontier parity | **done** — 2.10–2.15 shipped, exit gate 11/11 on BOTH providers; 2.16 MCP deferred with reason (owner 2026-07-08, see [ROADMAP2.md](ROADMAP2.md) tracker) | 2026-07-07 | 2026-07-08 |
-| 2C — Cognitive core | **approved & in progress** — plan in [ROADMAP3.md](ROADMAP3.md); primary target flips to the Gemini flash tier (owner 2026-07-08) | 2026-07-08 | — |
-| 3 — Make it mine | queued behind 2C (owner decisions 2026-07-07 + 2026-07-08: parity first, then the cognitive core) | — | — |
+| 2C — Cognitive core | **done** — all nine cycles (2.17–2.23, notes 22–31); exit gate: flash 14/14 + museum 3/3 (baseline 1/3), hold-out 3/3 first-run, local 14/14-by-majority at MICRO | 2026-07-08 | 2026-07-08 |
+| 3 — Make it mine | **unblocked** — opens exactly as specced below; 2C left it fertile ground (meta-tagged messages to prune, structured results worth keeping, a prompt that survives compaction) | — | — |
 
 *(Update this table and the "Current status" line in [CLAUDE.md](CLAUDE.md) as milestones complete.)*

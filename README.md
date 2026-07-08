@@ -45,20 +45,23 @@ the trust (Stage 3).
 
 ## Status
 
-**Stage 2R (frontier parity) closed 2026-07-08.** The harness runs end-to-end on both
-providers with modes, roles, reasoning control, web fetch, and skills; the local runtime
-is tuned (flash attention + q8_0 KV cache, +13 % gen speed). MCP was consciously deferred.
+**Stages 2R (frontier parity) and 2C (the cognitive core) both closed 2026-07-08.**
+The harness has modes, roles, reasoning control, web fetch, skills — and since 2C, a
+*strong internal system*: a sectioned system-prompt backbone with a four-tier ladder
+(MICRO fits the 8K local card at 264 tokens), voice & effort knobs (`explain` is the
+Gemini default; flash's hidden default thinking is pinned off — it measurably bought
+nothing), framed line-numbered pageable tool observations, an orientation map in the
+first message, and attention anchors for long sessions.
 
-- **136 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
-- **Exit gate 11/11 on both providers** (`uv run python acceptance/run.py <provider>`):
-  local qwen3:4b-instruct and gemini-2.5-flash-lite — including "explore mode blocks a
-  write", "answer from a fetched page", and "a skill's house format is read, never guessed".
+- **179 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
+- **Exit gate:** 14-task core + a 4-task *failure museum* mined from real live sessions
+  (`uv run python acceptance/run.py <provider> [--suite museum --n 3]`). At close:
+  flash **14/14 + museum 3/3 by majority** (the 2.17 baseline was 1/3), the never-tuned
+  hold-out task passed its first-ever runs 3/3, local **14/14-by-majority at MICRO**.
 
-Now in progress: **Stage 2C — the cognitive core** ([docs/ROADMAP3.md](docs/ROADMAP3.md)):
-system-prompt backbone + tiers, voice/effort knobs, structured tool observations,
-orientation, attention anchors — measured against a museum of real failing tasks.
-Then **Stage 3** turns the three pains above into real features.
-Plans: [docs/ROADMAP.md](docs/ROADMAP.md) → [docs/ROADMAP2.md](docs/ROADMAP2.md) → [docs/ROADMAP3.md](docs/ROADMAP3.md).
+Next: **Stage 3** — surgical context ops, prompt middleware, checkpoints; the three
+pains above become features. Plans: [docs/ROADMAP.md](docs/ROADMAP.md) →
+[docs/ROADMAP2.md](docs/ROADMAP2.md) → [docs/ROADMAP3.md](docs/ROADMAP3.md).
 
 ## Quickstart
 

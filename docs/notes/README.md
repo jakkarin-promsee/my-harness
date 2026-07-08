@@ -37,3 +37,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [28-senses-and-descriptions](28-senses-and-descriptions.md) | 2.21b: list_dir dirs-first+sizes, grep/glob/web_fetch frames (no JSON arrays left), all 8 descriptions teach workflow. Local 13/13, lite 13/13, museum majority holds |
 | [29-orientation](29-orientation.md) | 2.22: tier-sized project map in the env block + AGENTS.md map convention. A/B on flash: 2/3→3/3 with input tokens HALVED; local −22 % tokens. N-orientation task joins the gate |
 | [30-attention-anchors](30-attention-anchors.md) | 2.23: re-anchor after K quiet steps (meta-tagged, adapters scrub, /compact drops, resume prunes). First wording caused apology-spirals (M3 0/3!) — ambient "not user feedback" wording + K=8 fixed it |
+| [31-stage-2c-close](31-stage-2c-close.md) | **Stage 2C close report**: exit gate (flash 14/14 + museum 3/3, hold-out 3/3 first-run), the before/after table, honest remainders |

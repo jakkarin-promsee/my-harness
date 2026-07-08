@@ -21,7 +21,11 @@ accept "core 9–11/11 with K+I known-flaky" as flash-lite's green bar, or move
 the regression lane's role tasks to flash (per-provider task lists exist
 since 2.17).
 
-## 0. Ollama tray app needs a reboot (2026-07-07, from the 2.15 lab)
+## 0. Ollama tray app needs a reboot (2026-07-07, from the 2.15 lab; still true 2026-07-08)
+
+*(2026-07-08 update: one 695s ReadTimeout stall observed during the Stage 2C
+close runs — the detached server recovered by itself, but reboot when you
+can.)*
 
 During the lab the tray app got wedged: it starts, but its API server child
 dies instantly (`app.log`: "ollama server not ready after retries";

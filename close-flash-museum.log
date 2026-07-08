@@ -1,0 +1,596 @@
+[holdout] skipping M4-holdout-archaeology (stage close only; pass --include-holdout to run it)
+=== acceptance | provider: gemini-flash | model: gemini-2.5-flash | suite: museum | n=3 | tier: standard | voice: explain ===
+
+--- M1-page-eyes (run 1/3) ---
+
+agent> I will fetch the content of the provided URL to see what it says.
+  [tool] web_fetch -> [web_fetch] https://example.com - 152 chars
+
+agent> The page at `https://example.com` says:
+
+"Example Domain
+
+This domain is for use in documentation examples without needing permission. Avoid use in operations.
+
+Learn more"
+
+The title of the page is "Example Domain".
+--- M1-page-eyes run 1: PASS (page fetched and reported) | 5,394 in / 83 out | 2.8s | ~$0.0018
+
+--- M1-page-eyes (run 2/3) ---
+
+agent> I will now fetch the content of the provided URL to see what it says.
+  [tool] web_fetch -> [web_fetch] https://example.com - 152 chars
+
+agent> I have successfully fetched the content of `https://example.com`. It says:
+
+Title: Example Domain
+
+Example Domain
+
+This domain is for use in documentation examples without needing permission. Avoid use in operations.
+
+Learn more
+--- M1-page-eyes run 2: PASS (page fetched and reported) | 5,395 in / 81 out | 2.6s | ~$0.0018
+
+--- M1-page-eyes (run 3/3) ---
+
+agent> I will fetch the content of the provided URL to see what it says.
+  [tool] web_fetch -> [web_fetch] https://example.com - 152 chars
+
+agent> The page says "Example Domain" as its title and main heading. It also contains the text: "This domain is for use in documentation examples without needing permission. Avoid use in operations. Learn more".
+--- M1-page-eyes run 3: PASS (page fetched and reported) | 5,394 in / 75 out | 2.8s | ~$0.0018
+
+--- M2-orient-summary (run 1/3) ---
+
+agent> I will start by listing the directories to get an overview of the project structure.
+  [tool] list_dir -> [list_dir] . - 53 entries (13 dirs, 40 files)
+
+agent> The directory listing shows several interesting folders, including `src/`, `acceptance/`, `agents/`, `commands/`, `skills/`, and `docs/`. Based on the project map in the initial prompt, `src/harness/` seems to contain the core code, `acceptance/` contains live-model tests, and `agents/`, `commands/`, `skills/` are runtime libraries. `docs/` contains documentation.
+
+I'll start by reading the `README.md` file to get a high-level understanding of the project, what it does, and how to run it.
+  [tool] read_file -> [read_file] README.md - lines 1-87 of 207
+
+agent> The `README.md` provides an excellent overview!
+
+Here's what I've learned:
+
+**What it does:**
+The `researcher-harness` is a "from-scratch agent harness" built to understand how AI agent systems work. It focuses on addressing three pains: signal vs. noise in context, manual prompt reuse, and learning/independence from specific AI vendors.
+
+It features:
+*   A core loop that handles model calls, tool execution, and appending results.
+*   Tools for file operations (read/edit/search), running commands, web fetching, and a "todo" tool for external plans.
+*   Subagents for delegating tasks.
+*   Providers for Ollama (local), Gemini, and Anthropic, with adapters for different model APIs.
+*   Live streaming of thinking and narration.
+*   Switchable permission profiles (modes).
+*   Markdown-defined agents (roles) and skills (procedures the model discovers).
+*   Reasoning control (`/think off...high`) and token metering.
+
+**How to run it:**
+*   **Offline tests:** `uv run pytest -q` (always run after code changes).
+*   **Run the harness:**
+    *   `uv run harness` (Ollama, build mode, default agent)
+    *   `uv run harness gemini` (paid fallback for quality validation)
+    *   `uv run harness --agent plan` (start as a read-only planning role)
+    *   `uv run harness --mode explore -y` (look-don't-touch, no prompts)
+*   **Live-model acceptance gate:** `uv run python acceptance/run.py <provider>`
+
+**Where the main code lives:**
+*   **The entire "agent" loop:** `src/harness/core/loop.py`
+*   **Harness configuration:** `harness.toml`
+*   **Agents (roles):** `agents/` (Markdown-defined)
+*   **Skills:** `skills/*/SKILL.md`
+
+I will now verify the location of the core loop file, `src/harness/core/loop.py`, to confirm it exists and to get a sense of its content.
+  [tool] read_file -> [read_file] src/harness/core/loop.py - lines 1-50 of 234
+
+agent> The `loop.py` file indeed exists and the comments confirm its role as the "heart of the harness." It outlines the loop's contract, how it handles messages, tool problems, and mentions "LENGTH_NUDGE" for models that exceed token limits. This confirms the `README.md`'s description of the core logic residing here.
+
+I have now gathered enough information to answer the user's request. This project is a from-scratch agent harness designed to explore the mechanics of AI agent systems, focusing on efficient context handling, prompt reuse, and vendor independence. I've detailed how to run tests, start the harness with different configurations, and identified the core code in `src/harness/core/loop.py`.
+
+Here is a summary of the project:
+
+**What it does:**
+
+The `researcher-harness` is a self-built agent harness that provides a framework for building and experimenting with AI agents. Its primary goals are to:
+
+1.  **Learn by rebuilding:** Understand how existing agent systems (like Claude Code) function by recreating their core components.
+2.  **Ensure provider independence:** Create a system that isn't reliant on a single AI vendor, offering flexibility and resilience.
+
+It addresses common challenges in agent development:
+
+*   **Signal vs. noise:** Minimizing unnecessary context to improve efficiency and reduce token usage.
+*   **Prompt reuse:** Facilitating the reuse of effective prompts through templates and interviewers.
+
+The harness includes:
+
+*   A central **agent loop** that manages interactions between the model, tools, and conversation flow.
+*   A set of **tools** for file manipulation, command execution, web fetching, and task management.
+*   **Subagents** for delegating tasks.
+*   **Adapters** for various AI model providers (Ollama, Gemini, Anthropic).
+*   **Live visibility** into the agent's reasoning process.
+*   **Configurable modes** for different permission levels.
+*   **Markdown-defined roles (agents)** and **skills (procedures)**.
+*   **Reasoning control** and **token usage monitoring**.
+
+**How to run it:**
+
+*   **Offline tests:** Run `uv run pytest -q` after any code changes to ensure the core logic is sound.
+*   **Running the harness:**
+    *   `uv run harness`: Starts the harness with the default Ollama model in build mode.
+    *   `uv run harness gemini`: Uses the Gemini model (a paid fallback for quality validation).
+    *   `uv run harness --agent plan`: Starts the harness with a read-only planning agent.
+    *   `uv run harness --mode explore -y`: Activates an "explore" mode that prevents writes and auto-approves actions.
+*   **Live-model acceptance gate:** `uv run python acceptance/run.py <provider>` runs a suite of tests against a live model.
+
+**Where the main code lives:**
+
+*   **The core agent loop:** `src/harness/core/loop.py` is the central piece of the agent's logic.
+*   **Harness configuration:** `harness.toml` defines permissions and other settings.
+*   **Agent definitions (roles):** These are found in the `agents/` directory as Markdown files.
+*   **Skill definitions (procedures):** These are located in `skills/*/SKILL.md` files.
+--- M2-orient-summary run 1: PASS (named 4/5 fact groups (harness, loop, providers, tools)) | 17,899 in / 1,414 out | 13.1s | ~$0.0089
+
+--- M2-orient-summary (run 2/3) ---
+
+agent> Okay, I'll explore the project to tell you what it's about, how to run it, and where the main code lives. I'll start by listing the directories to get a high-level overview.
+  [tool] list_dir -> [list_dir] . - 53 entries (13 dirs, 40 files)
+
+agent> I see several directories that seem relevant, including `src/harness/`, `acceptance/`, `agents/`, `commands/`, `skills/`, and `docs/`. There's also `README.md` and `AGENTS.md`. I'll start by reading the main `README.md` to get an overall understanding of the project.
+  [tool] read_file -> [read_file] README.md - lines 1-87 of 207
+
+agent> This is a fascinating project!
+
+**What it is about:**
+The `researcher-harness` is a from-scratch agent harness, rebuilt to understand how agent systems (like Claude Code) work internally. It prioritizes learning over features and aims to address three main "pains":
+1.  **Signal vs. noise:** Reducing irrelevant context to improve efficiency.
+2.  **Prompt reuse by hand:** Enabling templated workflows with `/name args` commands instead of manual prompt rewriting.
+3.  **Learning & independence:** Providing an independent, provider-agnostic harness.
+
+It's not a product or an SDK wrapper; it's a research tool for a single user.
+
+**What it does today:**
+It features a core loop for agent execution, tools for file manipulation, search, command execution, and web fetching, and a "todo" tool for persistent plans. It also supports subagents, various model providers (Ollama, Gemini, Anthropic), live streaming of reasoning, switchable permission modes, Markdown-defined agent roles, skills (procedures the model reads on demand), reasoning control, permissions management via `harness.toml`, and token metering.
+
+**How to run it:**
+*   **Offline tests:** `uv run pytest -q` (always run after code changes).
+*   **Run the harness:**
+    *   `uv run harness` (Ollama, build mode, default agent)
+    *   `uv run harness gemini` (paid fallback)
+    *   `uv run harness --agent plan` (start as a read-only planning role)
+    *   `uv run harness --mode explore -y` (look-don't-touch, no prompts)
+*   **Live-model acceptance gate:** `uv run python acceptance/run.py <provider>`
+
+**Where the main code lives:**
+*   **The core loop:** `src/harness/core/loop.py`
+*   **Other core components:** `src/harness/core/` (loop, layers), `src/harness/providers/` (model adapters), `src/harness/tools/`, `src/harness/cli/` (the REPL), `src/harness/prompts/` (the backbone).
+*   **Agents (roles), commands, skills:** `agents/`, `commands/`, `skills/` (runtime libraries).
+*   **Configuration:** `harness.toml` (permissions).
+
+It looks like `src/harness/` is the central place for the harness's implementation.
+
+To confirm my understanding, I'll read the `AGENTS.md` file, as it was mentioned in the `Project notes` to provide a map and rules.
+  [tool] read_file -> [read_file] AGENTS.md - lines 1-19 of 19
+
+agent> The `AGENTS.md` file confirms the structure and rules I gathered from the `README.md`. It explicitly states that `src/harness/` is the location of the core code, and reiterates how to run tests and the harness itself. It also provides important rules, such as not modifying `archive/mvp/` and not committing `.env`.
+
+In summary:
+
+**What the project is about:**
+The `researcher-harness` is a learning-focused, from-scratch implementation of an AI agent harness. Its primary goal is to understand the inner workings of existing agent systems and to build a robust, provider-agnostic platform that addresses common challenges in agent development, such as managing context effectively, reusing prompts, and ensuring independence from specific AI vendors. It's a research tool, not a product.
+
+**How to run it:**
+*   **Offline tests:** `uv run pytest -q`
+*   **Run the harness:** `uv run harness [ollama|gemini|anthropic] [-y]`
+*   **Live-model acceptance tests:** `uv run python acceptance/run.py <provider>`
+
+**Where the main code lives:**
+The core implementation of the harness is located in the `src/harness/` directory, which contains:
+*   `core/`: The main loop and foundational layers.
+*   `providers/`: Adapters for different AI models (Ollama, Gemini, Anthropic).
+*   `tools/`: Implementations of various tools the agent can use (file operations, search, web fetch, etc.).
+*   `cli/`: The command-line interface (REPL).
+*   `prompts/`: The system prompt backbone.
+
+Additionally, `agents/`, `commands/`, and `skills/` directories contain runtime libraries for roles, slash commands, and model procedures, respectively.
+--- M2-orient-summary run 2: PASS (named 5/5 fact groups (harness, loop, providers, tools, plan)) | 17,562 in / 1,151 out | 9.4s | ~$0.0081
+
+--- M2-orient-summary (run 3/3) ---
+
+agent> I will start by listing the directories to get an overview of the project structure.
+  [tool] list_dir -> [list_dir] . - 53 entries (13 dirs, 40 files)
+
+agent> The project appears to be a "harness" for AI agents, likely for testing and development. I see directories like `agents/`, `src/harness/`, `acceptance/`, and `tests/`.
+
+Next, I'll read the `README.md` to get a high-level understanding of the project, what it does, and how to run it.
+  [tool] read_file -> [read_file] README.md - lines 1-87 of 207
+
+agent> This project is a **from-scratch agent harness** for AI models. It aims to understand how existing agent systems work by rebuilding one, and to provide a provider-agnostic platform. It focuses on reducing context noise, reusing prompts, and fostering learning and independence from specific AI vendors.
+
+**What it does:**
+*   It implements a core loop where a model makes tool calls, and the results are appended for the next iteration.
+*   It provides tools for file operations (read, edit, search), running shell commands, fetching web pages, and a "todo" tool for external plans.
+*   It supports subagents, which can be delegated tasks with fresh or forked context, and can have named roles.
+*   It has adapters for Ollama (local), Gemini (OpenAI-compatible), and Anthropic models.
+*   It features "visible mind" for live streaming of model reasoning, switchable permission profiles ("modes"), Markdown-defined "agents" (roles), and "skills" (model-discoverable procedures).
+*   It includes reasoning control (`/think off...high`) and token metering.
+
+**How to run it:**
+*   **Offline tests:** `uv run pytest -q`
+*   **Run the harness:**
+    *   `uv run harness` (Ollama, build mode, default agent)
+    *   `uv run harness gemini` (paid fallback)
+    *   `uv run harness --agent plan` (start as a read-only planning role)
+    *   `uv run harness --mode explore -y` (look-don't-touch, no prompts)
+*   **Live-model acceptance gate:** `uv run python acceptance/run.py <provider>`
+
+**Where the main code lives:**
+*   The core loop is in `src/harness/core/loop.py`.
+*   The overall code for the harness is in `src/harness/`.
+*   Agents (roles) are defined in `agents/`.
+*   Skills are defined in `skills/*/SKILL.md`.
+
+I have a good understanding of the project now. I have answered the user's questions about what the project is about, what it does, how to run it, and where the main code lives.
+
+--- M2-orient-summary run 3: PASS (named 5/5 fact groups (harness, loop, providers, tools, plan)) | 11,248 in / 609 out | 5.7s | ~$0.0049
+
+--- M3-guidebook (run 1/3) ---
+
+agent> Okay, I will write `docs/guide-book.md`, a guide for using this agent on the terminal. I need to explore the project first to gather information about launching the agent, slash commands, and permission modes.
+
+Here's my plan:
+1. Explore the `src/harness/cli/` directory to find out how the agent is launched and if there are any command-line arguments.
+2. Search for common slash commands or agent commands. I'll look in `agents/`, `commands/`, and `skills/` directories as per the project map.
+3. Investigate "permission modes" by searching the documentation and code for terms like "permissions", "modes", "safety", or similar.
+4. Synthesize the gathered information into `docs/guide-book.md`.
+
+I'll start by exploring `src/harness/cli/` to understand how the agent is launched.
+  [tool] list_dir -> [list_dir] src/harness/cli/ - 3 entries (1 dirs, 2 files)
+
+agent> I see `repl.py` in `src/harness/cli/`. This likely contains the main entry point for the agent's REPL (Read-Eval-Print Loop) and how it's launched. I'll read `src/harness/cli/repl.py` to understand the launch command and any associated arguments.
+  [tool] read_file -> [read_file] src/harness/cli/repl.py - lines 1-119 of 593
+
+agent> From `src/harness/cli/repl.py`, I can see the following launch commands and arguments:
+
+*   **Launch commands:**
+    *   `uv run python -m harness` (for local Ollama)
+    *   `uv run python -m harness gemini` (for Gemini flash-lite)
+    *   `uv run python -m harness anthropic` (for Anthropic)
+*   **Arguments:**
+    *   `-y` or `--yes`: auto-approve gate (for scripted runs)
+    *   `--mode explore`: read-only profile
+    *   `--agent <agent_name>`: loads a role from `agents/<agent_name>.md`
+
+Now, I will look for slash commands in `commands/`, `agents/`, and `skills/`. I'll start by listing the contents of the `commands/` directory.
+  [tool] list_dir -> [list_dir] commands/ - 4 entries (0 dirs, 4 files)
+
+agent> I see `explain.md`, `note.md`, and `test.md` in the `commands/` directory. These are likely the slash commands available to the agent. I'll read `README.md` first, as it often contains an overview of the directory's contents.
+  [tool] read_file -> [read_file] commands/README.md - lines 1-13 of 13
+
+agent> The `commands/README.md` confirms that `explain.md`, `note.md`, and `test.md` are slash commands: `/explain`, `/note`, and `/test`. It also explains how they work: the content of the markdown file is used as a template, with `{{args}}` being replaced by the user's input.
+
+Next, I'll check the `agents/` directory to see if there are any predefined agent roles.
+  [tool] list_dir -> [list_dir] agents/ - 4 entries (0 dirs, 4 files)
+
+agent> The `agents/` directory contains `chill.md`, `plan.md`, and `reviewer.md`. These are likely the agent roles that can be loaded using the `--agent` argument. I'll read `agents/README.md` to confirm this and get more details.
+  [tool] read_file -> [read_file] agents/README.md - lines 1-22 of 22
+
+agent> The `agents/README.md` confirms that `chill.md`, `plan.md`, and `reviewer.md` define agent roles, and they can be loaded using `--agent <name>` at launch. It also introduces the `/agent <name>` slash command for switching roles at runtime. Additionally, it mentions `mode:` which names a `harness.toml` profile and only sets the *default* (`/mode` still switches). This gives me a good lead for "permission modes."
+
+Now, I'll search for "permission modes" and related terms, starting with `src/harness/core/permissions.py` mentioned in `repl.py`.
+  [tool] read_file -> [read_file] src/harness/core/permissions.py - lines 1-135 of 135
+
+agent> `src/harness/core/permissions.py` provides a lot of detail about permission modes. Here's a summary:
+
+*   **Policy:** Each tool has a `default`, `allow`, `ask`, or `deny` state.
+    *   `deny` is absolute, `ask` requires user confirmation, `allow` proceeds without confirmation.
+    *   `deny > ask > allow` (deny beats ask beats allow).
+    *   The `-y` (or `--yes`) flag at launch auto-approves `ask` policies, but `deny` remains `deny`.
+*   **Scoped Tools:** `write_file` and `edit_file` have a special rule: even if `allow`ed, they degrade to `ask` if the path is outside the current working directory. This is a safety measure.
+*   **Modes:** Named policy profiles.
+    *   `build`: the default mode, defined by the `[permissions]` table in `harness.toml`.
+    *   Other modes (e.g., `chat`, `explore`, `auto`) can be defined in `[modes.<name>]` sections in `harness.toml`.
+    *   Modes can be switched at runtime using the `/mode <name>` command, or set at launch with `--mode <name>`.
+    *   A mode can also specify `send_tools=False` (e.g., `chat` mode), meaning the agent won't be offered any tools.
+
+To complete the picture on permission modes, I'll read `docs/notes/16-permission-modes.md` as it's directly referenced in `permissions.py`.
+  [tool] read_file -> [read_file] docs/notes/16-permission-modes.md - lines 1-35 of 35
+  [anchor] re-anchoring after 8 quiet tool steps
+
+agent> I have gathered all the necessary information to write `docs/guide-book.md`. I have details on:
+
+*   **Launching the agent:** `uv run python -m harness [ollama|gemini|anthropic]` with optional arguments like `-y`, `--mode <name>`, and `--agent <name>`.
+*   **Slash commands:** `/explain`, `/note`, `/test` (from `commands/`), and `/agent <name>`, `/mode <name>` (from `agents/` and `permissions.py` context).
+*   **Permission modes:** `build`, `chat`, `explore`, `auto` (from `harness.toml` configuration), their policies (`allow`, `ask`, `deny`), and the scoping rule for `write_file`/`edit_file`.
+
+Now, I will synthesize this information and write the `docs/guide-book.md` file. I'll structure it with sections for "Launching the Agent", "Slash Commands", and "Permission Modes".
+  [tool] write_file -> wrote 5152 chars to docs/guide-book.md
+
+agent> I have successfully written the `docs/guide-book.md` file, documenting how to launch the agent, the available slash commands, and the permission modes.
+
+To verify, I will read the first few lines of the file to ensure it was written correctly.
+  [tool] read_file -> [read_file] docs/guide-book.md - lines 1-10 of 120
+
+agent> The first few lines of `docs/guide-book.md` look correct, confirming that the file was written as intended.
+
+**Summary:**
+
+I have successfully created `docs/guide-book.md`, a comprehensive guide for using the agent harness on the terminal. The guide covers:
+
+*   **Launching the Agent:** How to start the agent with different models (Ollama, Gemini, Anthropic) and command-line arguments such as `--yes` for auto-approval, `--mode` for setting permission profiles, and `--agent` for specifying an agent role.
+*   **Slash Commands:** Detailed explanations of `/explain`, `/note`, `/test`, `/agent`, and `/mode` for runtime interaction and control.
+*   **Permission Modes:** A thorough description of the policy rules (`allow`, `ask`, `deny`), their precedence, the safety feature of scoped writes for file modifications, and the available modes (`build`, `chat`, `explore`, `auto`).
+
+The information was gathered by exploring `src/harness/cli/repl.py`, `commands/README.md`, `agents/README.md`, `src/harness/core/permissions.py`, and `docs/notes/16-permission-modes.md`. The created document provides a clear and accurate resource for users of the agent.
+--- M3-guidebook run 1: PASS (covers 4/7 real commands) | 79,008 in / 3,307 out | 29.5s | ~$0.0320
+
+--- M3-guidebook (run 2/3) ---
+
+agent> Okay, I will write `docs/guide-book.md`, a guide for using this agent on the terminal. To do this, I need to explore the project to understand how to launch the agent, its slash commands, and permission modes.
+
+Here's my plan:
+
+1.  **Explore project structure:** I'll start by listing the top-level directories to get a general overview of the project.
+2.  **Find launch commands:** I'll look for files that describe how to run the harness. `src/harness/cli/` seems like a good place to start for CLI commands. I'll also check `README.md` and `docs/ROADMAP.md` for general instructions.
+3.  **Identify slash commands:** I'll search for how slash commands are defined or handled within the project. `agents/`, `commands/`, and `skills/` directories are likely candidates for this information.
+4.  **Understand permission modes:** I'll look for any explicit documentation or code related to "permission modes" or "security." This might be less obvious and may require more searching.
+5.  **Draft the guide:** Once I have this information, I'll write the `docs/guide-book.md` file.
+
+I'll start by listing the contents of the `src/harness` directory to get a better understanding of the code structure related to the harness itself.
+  [tool] list_dir -> [list_dir] src/harness - 10 entries (6 dirs, 4 files)
+
+agent> I've listed the contents of `src/harness`. The `cli/` directory seems like the most relevant place to find information about launching the agent and its command-line interface. I'll also check `README.md` within `src/harness` for general usage instructions.
+
+Next, I'll read the `README.md` file in `src/harness` to see if it contains information about launching the agent.
+  [tool] read_file -> [read_file] src/harness/README.md - lines 1-32 of 32
+
+agent> I've read `src/harness/README.md`. It provides a crucial piece of information under "Run it":
+
+`uv run harness [ollama|gemini|anthropic] [-y] [--resume] [--sessions]` (or `uv run python -m harness ...`).
+
+This tells me how to launch the agent and the different providers it supports. It also mentions `cli/repl.py` as the "only human-facing code," which is a good place to look for slash commands.
+
+Now I'll read the docstring of `src/harness/cli/repl.py` to find information about slash commands and anything else relevant to the terminal experience.
+  [tool] read_file -> [read_file] src/harness/cli/repl.py - lines 1-119 of 593
+
+agent> I've read the beginning of `src/harness/cli/repl.py`. It confirms the launch commands and provides more details on providers and some command-line arguments.
+
+From the docstring, I've gathered this about launching the agent:
+
+*   `uv run python -m harness` (for local Ollama)
+*   `uv run python -m harness gemini` (for Gemini flash-lite)
+*   `uv run python -m harness -y` (auto-approve gate for scripted runs)
+*   `uv run python -m harness --mode explore` (read-only profile)
+*   `uv run python -m harness --agent plan` (role from `agents/*.md`)
+
+This gives me a good start on the "how to launch it" and "permission modes" (at least for `--mode explore`). The `--agent plan` argument also points to the `agents/` directory for roles, which might be related to slash commands or custom behaviors.
+
+To find information on slash commands, I need to see how commands are registered or handled. The import `from harness.core import commands` on line 34 suggests that `harness/core/commands.py` is the place to look for slash command definitions.
+
+I'll read `src/harness/core/commands.py` next.
+  [tool] read_file -> [read_file] src/harness/core/commands.py - lines 1-36 of 36
+
+agent> `src/harness/core/commands.py` confirms that slash commands are simply Markdown files in the `commands/` directory. The `/name args` syntax reads `commands/name.md`, substitutes `{{args}}`, and the result becomes the user message. This is very straightforward!
+
+Now I have a good understanding of:
+
+*   **How to launch the agent:** `uv run harness [provider] [options]`
+*   **Slash commands:** Markdown files in the `commands/` directory, used with `/command_name arguments`.
+*   **Permission modes:** At least `--mode explore` for read-only and `-y` for auto-approve. The `load_modes` function in `harness/core/permissions.py` suggests there might be more to explore regarding permissions.
+
+I'll check the `commands/` directory to see what existing commands are available, and then I will also check `src/harness/core/permissions.py` to see if I can find more information about permission modes.
+  [tool] list_dir -> [list_dir] commands/ - 4 entries (0 dirs, 4 files)
+
+agent> I've listed the files in the `commands/` directory. It contains `explain.md`, `note.md`, and `test.md`, along with a `README.md`. This confirms the existence of these slash commands.
+
+Now, I'll read `src/harness/core/permissions.py` to get more details on permission modes.
+  [tool] read_file -> [read_file] src/harness/core/permissions.py - lines 1-135 of 135
+
+agent> `src/harness/core/permissions.py` gives a very detailed explanation of permission modes!
+
+Here's what I've learned about permission modes:
+
+*   **Policy States:** `allow`, `ask`, `deny`. `deny` beats `ask` beats `allow`.
+*   **Default Behavior:** If no configuration is found in `harness.toml`, the default policy is `ask` for everything (safe default).
+*   **`-y` Flag:** Auto-approves `ask` decisions, but `deny` remains `deny`.
+*   **Modes:** Named policy profiles, switchable at runtime. `build` is the plain `[permissions]` table in `harness.toml`. Other modes like `chat`, `explore`, and `auto` can be defined in `[modes.<name>]` sections in `harness.toml`. The `--mode explore` argument likely activates the `explore` mode, which is a read-only profile.
+*   **Scoped Tools:** `write_file` and `edit_file` have their `allow` permission scoped to the current working directory. Outside of it, `allow` degrades to `ask`.
+*   **`send_tools`:** A mode can also specify `send_tools=False`, which means tools are not offered at all (e.g., "chat mode").
+
+I have all the information I need to write `docs/guide-book.md`.
+
+I will now create the file `docs/guide-book.md` with the gathered information.
+  [tool] write_file -> wrote 4964 chars to docs/guide-book.md
+
+agent> I have written the `docs/guide-book.md` file based on the information I gathered.
+
+Here's a summary of what I did and verified:
+
+*   **Exploration:** I successfully explored the project using `list_dir`, `read_file`, and identified key files like `src/harness/README.md`, `src/harness/cli/repl.py`, `src/harness/core/commands.py`, and `src/harness/core/permissions.py`.
+*   **Launch Commands:** I identified the basic launch commands for Ollama, Gemini, and Anthropic providers, as well as command-line options like `-y`, `--mode`, and `--agent`.
+*   **Slash Commands:** I understood that slash commands are defined by Markdown files in the `commands/` directory and how they are used with `{{args}}` substitution. I listed the existing commands.
+*   **Permission Modes:** I documented the three policy states (`allow`, `ask`, `deny`), how they are applied, the concept of named modes (`build`, `explore`, `chat`, `auto`), and the special handling of scoped tools like `write_file` and `edit_file`. I also provided an example of `harness.toml` configuration.
+*   **Guide Creation:** I created `docs/guide-book.md` with all this information, structuring it logically for a user guide.
+
+I have completed the task of writing `docs/guide-book.md`. The guide documents the real commands and mechanisms of the harness agent on the terminal.
+--- M3-guidebook run 2: FAIL (only 3/7 real commands (uv run harness, --resume, explore) - generic filler?) | 50,655 in / 3,284 out | 24.9s | ~$0.0234
+
+--- M3-guidebook (run 3/3) ---
+
+agent> I need to write a guide for using this agent on the terminal, documenting how to launch it, its slash commands, and permission modes. To do this, I will first explore the project to gather the necessary information.
+
+Here's my plan:
+
+1.  **Explore the project to understand launch commands:** I'll look for how the agent is launched, specifically checking `src/harness/cli/` and `src/harness/main.py` or similar entry points, and consult `AGENTS.md` for clues like `uv run harness`.
+2.  **Identify slash commands:** I'll search for common patterns like `/` followed by a keyword, likely within `src/harness/commands/` or `agents/` directories.
+3.  **Investigate permission modes:** I'll look for terms like "permissions," "modes," "safety," or "security" in the codebase and documentation, especially around tool execution or sensitive operations.
+4.  **Draft the guide:** Once I have this information, I will synthesize it into `docs/guide-book.md`, covering launching, commands, and permissions.
+5.  **Review and refine:** I'll read through the drafted guide to ensure accuracy, clarity, and completeness.
+
+I will start by listing the contents of `src/harness/` to get an overview of the code structure.
+  [tool] list_dir -> [list_dir] src/harness/ - 10 entries (6 dirs, 4 files)
+
+agent> Okay, I see `cli/` and `__main__.py` in `src/harness/`, which are good candidates for launch commands. Also, `prompts/` and `tools/` seem relevant for understanding how the agent operates, and potentially for identifying slash commands if they're implemented as special prompts or tool invocations.
+
+Next, I'll read `src/harness/__main__.py` to see how the harness is launched. This should give me the core command.
+  [tool] read_file -> [read_file] src/harness/__main__.py - lines 1-6 of 6
+
+agent> From `src/harness/__main__.py`, I can see that the entry point is `uv run python -m harness [gemini] [-y]`. This confirms the launch command and also points to `harness.cli.repl.main` as the function that starts the REPL (Read-Eval-Print Loop). The `[gemini] [-y]` part likely refers to model selection and a "yes" flag for confirmation, which I should investigate further.
+
+Now, I'll examine `src/harness/cli/repl.py` to understand the REPL, and hopefully discover how slash commands are handled and if there are any explicit permission modes.
+  [tool] read_file -> [read_file] src/harness/cli/repl.py - lines 1-119 of 593
+
+agent> I've started reading `src/harness/cli/repl.py`. Here's what I've found so far that's relevant to the guide:
+
+**Launch Commands:**
+
+*   `uv run python -m harness` (local Ollama)
+*   `uv run python -m harness gemini` (Gemini flash-lite)
+*   `uv run python -m harness -y` (auto-approve gate for scripted runs)
+*   `uv run python -m harness --mode explore` (read-only profile)
+*   `uv run python -m harness --agent plan` (loads a role from `agents/*.md`)
+
+**Permission Modes:**
+
+*   `--mode explore` is explicitly mentioned as a "read-only profile." This is a key piece of information for the permissions section. I also see `harness.core.permissions.ModeSet, load_modes` imported, which I'll investigate further to see if there are other modes.
+
+**Slash Commands:**
+
+I haven't explicitly seen "slash commands" yet, but the `--agent plan` parameter suggests that roles from `agents/*.md` influence how the agent behaves, which could be related to different command sets or behaviors. The `harness.core.commands` import also suggests where to look.
+
+I will continue reading `src/harness/cli/repl.py` from `offset=120` to find more about commands and permissions.
+  [tool] read_file -> [read_file] src/harness/cli/repl.py - lines 120-240 of 593
+
+agent> I've continued reading `src/harness/cli/repl.py`. Here's what I've gathered:
+
+**Permission Modes:**
+
+The `make_gate` function (lines 222-240) clearly outlines the permission system:
+*   `deny`: Tool call is flatly refused. `-y` (auto-approve) cannot override it.
+*   `allow`: Tool call runs silently. For write operations, this is restricted to the current working directory.
+*   `ask`: The user is prompted `y/N`. `-y` upgrades this to `yes`.
+*   The system reads the active mode's policy per call, so `/mode` switches apply mid-session.
+*   Edit/write operations display a unified diff at the prompt instead of raw JSON arguments, which is a great detail for the guide.
+
+I need to find out *what* modes are available beyond `explore`. The `ModeSet` and `load_modes` imports are crucial here.
+
+**Slash Commands:**
+
+Still no explicit "slash commands" definition, but the reference to `/mode` in `make_gate` is a strong indicator that `/mode` is indeed a slash command. I will continue to look for where these are defined or handled. The `harness.core.commands` import is still my primary lead.
+
+I'll continue reading `src/harness/cli/repl.py` from `offset=241`.
+  [tool] read_file -> [read_file] src/harness/cli/repl.py - lines 241-347 of 593
+
+agent> I've finished reading `src/harness/cli/repl.py`. Here's what I've learned, completing my information gathering for the guide:
+
+**Launch Commands:**
+
+I've got a solid list from the previous read, and `parse_args` (lines 256-274) confirms the command-line arguments:
+*   `uv run python -m harness [provider]` (where `provider` can be `ollama`, `gemini`, `gemini-flash`, `anthropic`). Defaults to `ollama`.
+*   `-y` or `--yes`: auto-approves the permission gate.
+*   `--mode [NAME]`: Specifies a permission mode (e.g., `chat`, `explore`, `build`, `auto`). This is critical for the permissions section. It explicitly states `Explicit --mode beats the agent's default`.
+*   `--agent [NAME]`: Specifies a role (e.g., `plan`). This loads a role from `agents/*.md`.
+*   `--resume [ID]`: Continues a saved session. `latest` can be used to resume the most recent one.
+*   `--sessions`: Lists saved sessions and exits.
+
+**Permission Modes:**
+
+The `parse_args` function (line 262) explicitly lists available modes: `chat`, `explore`, `build`, `auto`. These, combined with the `deny`, `allow`, and `ask` policies, give me a comprehensive picture of the permission system. I'll need to check `harness.toml` to get the specifics of each mode.
+
+**Slash Commands:**
+
+The `parse_args` function *doesn't* define slash commands. This means they're handled differently, likely within the REPL's input processing loop. The mention of `/mode` in `make_gate` (line 228) and `/think` (line 336) suggests that slash commands are a runtime feature, not command-line arguments. I need to explicitly look for how user input is parsed for these commands. I'll look for `harness.core.commands`.
+
+My next step is to explore `harness.toml` to understand the specifics of the permission modes (`chat`, `explore`, `build`, `auto`). Then I will look for `/commands` in `harness/core/commands.py` and other relevant files.
+  [tool] read_file -> [read_file] harness.toml - lines 1-37 of 37
+
+agent> I've examined `harness.toml` and have a clear understanding of the permission modes. This is excellent for the guide's permission section.
+
+Here's a summary of the permission modes:
+
+*   **`build` (default if no mode specified):**
+    *   `default = "ask"`: All tools not explicitly listed will prompt for confirmation.
+    *   `allow`: `read_file`, `list_dir`, `grep`, `glob`, `todo_write` run silently.
+    *   `ask`: `write_file`, `edit_file`, `run_shell`, `spawn_subagent`, `web_fetch` prompt for confirmation.
+    *   `deny`: None.
+
+*   **`chat`:**
+    *   `tools = false`: No tools are sent to the model (effectively disabled).
+    *   `default = "deny"`: All actions are denied.
+
+*   **`explore`:**
+    *   `default = "deny"`: All tools not explicitly allowed will be denied.
+    *   `allow`: `read_file`, `list_dir`, `grep`, `glob`, `todo_write` run silently.
+    *   `ask`: `web_fetch` prompts for confirmation.
+    *   `deny`: Effectively all write/edit tools.
+
+*   **`auto`:**
+    *   `default = "ask"`: All tools not explicitly listed will prompt for confirmation.
+    *   `allow`: `read_file`, `list_dir`, `grep`, `glob`, `todo_write`, `write_file`, `edit_file` run silently.
+    *   `ask`: `run_shell`, `spawn_subagent`, `web_fetch` prompt for confirmation.
+    *   `deny`: None.
+
+Now that I have a comprehensive understanding of the permission modes, my next step is to identify the slash commands. Based on the `src/harness/cli/repl.py` content and the project map, `commands/` and `harness.core.commands` are the most likely places to find them. I'll start by listing the contents of `commands/`.
+  [tool] list_dir -> [list_dir] commands/ - 4 entries (0 dirs, 4 files)
+
+agent> Okay, I see `explain.md`, `note.md`, and `test.md` in the `commands/` directory, along with `README.md`. These files likely define the behavior of the corresponding slash commands, e.g., `/explain`, `/note`, and `/test`.
+
+I'll read `commands/README.md` first, as it should provide an overview of how commands work.
+  [tool] read_file -> [read_file] commands/README.md - lines 1-13 of 13
+  [anchor] re-anchoring after 8 quiet tool steps
+
+agent> `commands/README.md` confirms my suspicions about slash commands!
+
+Here's what I've learned about slash commands:
+
+*   **Mechanism:** A slash command like `/name args` reads `commands/name.md`.
+*   **Argument Handling:** It substitutes `{{args}}` in the `.md` file with the user's input, or appends the arguments if no `{{args}}` placeholder is present.
+*   **Available Commands:**
+    *   `/explain ...` (from `explain.md`)
+    *   `/note ...` (from `note.md`)
+    *   `/test ...` (from `test.md`)
+
+This is great! I have all the necessary information to write `docs/guide-book.md`.
+
+Now, I will write the `docs/guide-book.md` file.
+  [tool] write_file -> wrote 5793 chars to docs/guide-book.md
+
+agent> I have successfully written the `docs/guide-book.md` file, documenting the launch commands, slash commands, and permission modes.
+
+To verify, I will read the first few lines of the newly created file to ensure it's there and contains the expected content.
+  [tool] read_file -> [read_file] docs/guide-book.md - lines 1-10 of 110
+
+agent> The initial lines of `docs/guide-book.md` confirm that the file has been created and contains the correct introductory content. I'm confident that the guide has been successfully written with all the requested information.
+
+**Summary:**
+
+I have successfully created `docs/guide-book.md`, a comprehensive guide for using the Harness Agent on the terminal.
+
+Here's a breakdown of what was done and how it was verified:
+
+*   **Exploration:**
+    *   I started by listing the contents of `src/harness/` to get an overview.
+    *   I read `src/harness/__main__.py` to identify the core launch command.
+    *   I thoroughly examined `src/harness/cli/repl.py` in multiple reads to gather details on launch arguments, permission mode handling, and hints about slash commands.
+    *   I read `harness.toml` to understand the specifics of each permission mode (`build`, `chat`, `explore`, `auto`).
+    *   I listed the contents of `commands/` and read `commands/README.md` to identify and understand the available slash commands (`/explain`, `/note`, `/test`).
+
+*   **Guide Creation:**
+    *   Using all the gathered information, I wrote the `docs/guide-book.md` file, covering:
+        *   **Launching the Agent:** Detailed instructions on `uv run python -m harness` and all its command-line arguments (`provider`, `-y`, `--mode`, `--agent`, `--resume`, `--sessions`).
+        *   **Slash Commands:** Explanations for `/explain`, `/note`, and `/test`, including how arguments are handled.
+        *   **Permission Modes:** A detailed breakdown of `build`, `chat`, `explore`, and `auto` modes, outlining their default policies and specific tool permissions (deny, allow, ask). Important notes on permission behavior were also included.
+
+*   **Verification:**
+    *   I verified the creation and initial content of `docs/guide-book.md` by reading its first 10 lines.
+
+The task is complete.
+--- M3-guidebook run 3: PASS (covers 4/7 real commands) | 99,511 in / 4,769 out | 34.4s | ~$0.0418
+
+=== results | provider: gemini-flash | model: gemini-2.5-flash | suite: museum ===
+  PASS  M1-page-eyes             3/3 | ~5,394 in / 80 out | 2.7s | ~$0.0018/run | r1:P; r2:P; r3:P
+  PASS  M2-orient-summary        3/3 | ~15,570 in / 1,058 out | 9.4s | ~$0.0073/run | r1:P; r2:P; r3:P
+  PASS  M3-guidebook             2/3 | ~76,391 in / 3,787 out | 29.6s | ~$0.0324/run | r1:P; r2:F; r3:P
+  3/3 tasks pass by majority | tokens: 292,066 in / 14,773 out / 0 think | est $0.1246 total
