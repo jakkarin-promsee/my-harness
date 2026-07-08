@@ -18,6 +18,19 @@ def estimate_tokens(messages: list) -> int:
 
 WARN_AT = 0.80
 
+# Auto-compact (2.27, note 36): past this fraction of the window, the REPL
+# runs /compact by itself at the turn boundary. Per-provider "auto_compact"
+# overrides; 0 disables. 0.85 leaves headroom for one more turn - firing at
+# 100% would be firing after the crash.
+AUTO_COMPACT_AT = 0.85
+
+
+def should_compact(estimate: int, window: int,
+                   threshold: float = AUTO_COMPACT_AT) -> bool:
+    """The trigger, separated from the mechanism: Stage 3.1 will replace
+    compact() with surgical ops, but this boundary check carries over."""
+    return bool(window) and bool(threshold) and estimate / window >= threshold
+
 
 def budget_line(estimate: int, window: int) -> str:
     if not window:

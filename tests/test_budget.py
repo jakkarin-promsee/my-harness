@@ -23,6 +23,19 @@ def test_budget_line_without_window_just_reports():
     assert "1,234" in line and "%" not in line
 
 
+def test_should_compact_fires_at_the_threshold():
+    # 2.27 (note 36): the 80% warning grows hands at 85%.
+    assert not budget.should_compact(84, 100)
+    assert budget.should_compact(85, 100)
+    assert budget.should_compact(100, 100)
+
+
+def test_should_compact_never_fires_windowless_or_disabled():
+    assert not budget.should_compact(10_000_000, 0)       # no window known
+    assert not budget.should_compact(99, 100, threshold=0)  # the off-switch
+    assert budget.should_compact(50, 100, threshold=0.5)    # per-provider override
+
+
 def test_compact_replaces_history_and_surfaces_cost():
     reply = text_reply("- task: build harness (in progress)")
     reply["usage"] = {"prompt_tokens": 500, "completion_tokens": 40}

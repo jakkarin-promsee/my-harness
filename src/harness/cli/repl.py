@@ -69,6 +69,12 @@ PROVIDERS = {
         "voice": "normal",
         # Tool-result diet (2.21a): tight on the 8K card.
         "max_tool_chars": 2000,
+        # Auto-compact fires EARLY here (2.27, note 36): the mechanism
+        # re-reads the whole transcript, and chars/4 under-estimates real
+        # tokens ~25% on this card (measured: est 7,058 = 8,862 real -> the
+        # compact call itself 400s past ~0.75 real). 0.6 estimated keeps the
+        # summarize call inside the window it's trying to save.
+        "auto_compact": 0.6,
     },
     # The FUN/STUDY lane (2026-07-08): same qwen3:4b family as the workhorse,
     # but the THINKING sibling. Measured same ~14 tok/s, yet ~7x more tokens
@@ -94,6 +100,7 @@ PROVIDERS = {
         # non-thinking model distills the turn and replaces the churn with a
         # compact recap - rolling compaction so the verbose lane stays lean.
         "reflect": "qwen3:4b-instruct",
+        "auto_compact": 0.6,  # same 8K arithmetic as the workhorse lane
     },
     # Two Gemini lanes since 2.17 (ROADMAP3 §4): "gemini" = flash-lite, the
     # cheap REGRESSION lane (before/after-every-feature runs); "gemini-flash"
@@ -484,6 +491,34 @@ def main() -> None:
         for m in messages:
             persist(m)
         print(f"  agent: {active_agent} | continued in session {session_id}")
+    def run_compact() -> None:
+        """The ONE compact path (2.27, note 36): /compact and the auto
+        trigger share it. Uses agent.model — the ACTIVE model — which also
+        fixes the pre-2.27 bug where /compact after an /agent provider
+        switch still summarized on the launch model."""
+        nonlocal messages, session_id
+        print("  compacting (this costs a model call - watch the meter)...")
+        try:
+            new_messages, usage = budget.compact(agent.model, messages)
+        except requests.RequestException as e:
+            print(f"  [!] API error: {e}")
+            return
+        except KeyboardInterrupt:
+            # compact() only returns a new list on success - cancelling
+            # here loses nothing (2.25's belt on the one other long call).
+            print("\n  [interrupted] compact cancelled - context unchanged")
+            return
+        messages = new_messages
+        if usage:
+            on_usage(usage)
+        # Old transcript stays intact on disk; compacted context lives on
+        # in a NEW session file (resuming the old id = full history back).
+        session_id = store.new()
+        for m in messages:
+            persist(m)
+        print(budget.budget_line(budget.estimate_tokens(messages), window))
+        print(f"  continued in session {session_id}")
+
     while True:
         try:
             user = input("\nyou> ").strip()
@@ -619,26 +654,7 @@ def main() -> None:
             print(budget.budget_line(budget.estimate_tokens(messages), window))
             continue
         if user == "/compact":
-            print("  compacting (this costs a model call - watch the meter)...")
-            try:
-                messages, usage = budget.compact(model, messages)
-            except requests.RequestException as e:
-                print(f"  [!] API error: {e}")
-                continue
-            except KeyboardInterrupt:
-                # compact() only returns a new list on success - cancelling
-                # here loses nothing (2.25's belt on the one other long call).
-                print("\n  [interrupted] compact cancelled - context unchanged")
-                continue
-            if usage:
-                on_usage(usage)
-            # Old transcript stays intact on disk; compacted context lives on
-            # in a NEW session file (resuming the old id = full history back).
-            session_id = store.new()
-            for m in messages:
-                persist(m)
-            print(budget.budget_line(budget.estimate_tokens(messages), window))
-            print(f"  continued in session {session_id}")
+            run_compact()
             continue
         if user.startswith("/"):
             expanded = commands.expand(user, commands.discover())
@@ -686,7 +702,15 @@ def main() -> None:
                 persist(note)
                 after = budget.estimate_tokens(messages)
                 print(f"  [reflect] distilled turn -> recap | context ~{before:,} -> ~{after:,} tok")
-        print(budget.budget_line(budget.estimate_tokens(messages), window))
+        # Auto-compact (2.27, note 36): the turn boundary is the seam - the
+        # 80% warning finally acts instead of hoping a human is watching.
+        est = budget.estimate_tokens(messages)
+        if budget.should_compact(est, window, primary_cfg.get("auto_compact", budget.AUTO_COMPACT_AT)):
+            print(f"  [auto-compact] context ~{est:,} tokens crossed "
+                  f"{primary_cfg.get('auto_compact', budget.AUTO_COMPACT_AT):.0%} of {window:,}")
+            run_compact()
+        else:
+            print(budget.budget_line(est, window))
     for s in mcp_servers:  # stdio servers also exit on stdin EOF — this is just tidy
         s.stop()
     print(f"\nsession total: {totals['in']:,} in / {totals['out']:,} out tokens")

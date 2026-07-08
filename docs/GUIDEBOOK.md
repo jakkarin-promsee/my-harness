@@ -57,7 +57,7 @@ uv run harness gemini-flash   # the quality lane
 | `/voice` · `/voice NAME` | how much the agent talks: `quiet` (scripted runs) · `normal` (local default) · `explain` (Gemini default — narrates the plan, teaches as it goes, closes with a verified summary) |
 | `/mcp` | list connected MCP servers and the tools they mounted |
 | `/tokens` | context size vs. the model's window |
-| `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file) |
+| `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file). Also fires **automatically** at a per-provider window threshold (85 % default, 60 % on the 8K local lanes — note 36); `auto_compact: 0` in a provider entry disables |
 | `/NAME args` | anything else runs `commands/NAME.md` with `{{args}}` substituted |
 
 ## Modes — how much can it touch?
