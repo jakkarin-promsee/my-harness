@@ -21,6 +21,8 @@ import json
 
 import requests
 
+from harness.providers.base import request_with_retries
+
 THINK_MAP = {"off": False, "on": True}  # low/medium/high pass through as strings
 
 
@@ -112,16 +114,16 @@ class OllamaNativeModel:
 
     def complete(self, messages: list, tools: list) -> dict:
         body = self.body(messages, tools)
-        for attempt in (1, 2):  # one retry on 5xx, 4xx is our bug (see compat)
-            resp = requests.post(self.url, json=body, timeout=self.timeout,
-                                 stream=bool(self.on_delta))
-            if resp.status_code >= 500 and attempt == 1:
-                print(f"  [!] {resp.status_code} from provider - retrying once...")
-                continue
-            resp.raise_for_status()
-            if not self.on_delta:
-                return normalize_native(resp.json())
-            return self._stream(resp)
+        # Shared policy (2.26, note 35) but only 2 attempts: localhost is
+        # either up or hard-down (the tray problem) - 15s of backoff before
+        # "is Ollama running?" would be worse than the failure.
+        resp = request_with_retries(
+            lambda: requests.post(self.url, json=body, timeout=self.timeout,
+                                  stream=bool(self.on_delta)),
+            attempts=2)
+        if not self.on_delta:
+            return normalize_native(resp.json())
+        return self._stream(resp)
 
     def _stream(self, resp) -> dict:
         """NDJSON: one JSON object per line; fragments live in

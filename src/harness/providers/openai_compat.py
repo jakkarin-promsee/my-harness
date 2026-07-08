@@ -19,6 +19,8 @@ import re
 
 import requests
 
+from harness.providers.base import request_with_retries
+
 THINK_TAG = re.compile(r"^\s*<think>(.*?)</think>\s*", re.DOTALL)
 
 
@@ -173,24 +175,19 @@ class OpenAICompatModel:
 
     def complete(self, messages: list, tools: list) -> dict:
         body = self.body(messages, tools)
-        # One retry on 5xx: cloud endpoints throw transient 503s under load
-        # (measured live on Gemini flash-lite). A 4xx is OUR bug and must not
-        # be retried — same request, same rejection.
-        for attempt in (1, 2):
-            resp = requests.post(
-                self.url,
-                headers={"Authorization": f"Bearer {self.key}"},
-                json=body,
-                timeout=self.timeout,
-                stream=bool(self.on_delta),
-            )
-            if resp.status_code >= 500 and attempt == 1:
-                print(f"  [!] {resp.status_code} from provider - retrying once...")
-                continue
-            resp.raise_for_status()
-            if not self.on_delta:
-                return normalize_reply(resp.json())
-            return self._stream(resp)
+        # The shared retry policy (2.26, note 35): backoff+jitter on 429/5xx/
+        # connection errors, Retry-After honored. Cloud endpoint -> the full
+        # 5 attempts (flash-lite's 503 bursts are measured reality).
+        resp = request_with_retries(lambda: requests.post(
+            self.url,
+            headers={"Authorization": f"Bearer {self.key}"},
+            json=body,
+            timeout=self.timeout,
+            stream=bool(self.on_delta),
+        ))
+        if not self.on_delta:
+            return normalize_reply(resp.json())
+        return self._stream(resp)
 
     def _stream(self, resp) -> dict:
         """Read the SSE wire: fragments to on_delta as they arrive, the

@@ -13,6 +13,8 @@ import json
 
 import requests
 
+from harness.providers.base import request_with_retries
+
 API_URL = "https://api.anthropic.com/v1/messages"
 API_VERSION = "2023-06-01"
 
@@ -152,18 +154,14 @@ class AnthropicModel:
 
     def complete(self, messages: list, tools: list) -> dict:
         payload = self.body(messages, tools)
-        for attempt in (1, 2):  # same 5xx policy as the openai-compat adapter
-            resp = requests.post(
-                self.url,
-                headers={
-                    "x-api-key": self.key,  # NOT Authorization: Bearer
-                    "anthropic-version": API_VERSION,
-                },
-                json=payload,
-                timeout=self.timeout,
-            )
-            if resp.status_code >= 500 and attempt == 1:
-                print(f"  [!] {resp.status_code} from provider - retrying once...")
-                continue
-            resp.raise_for_status()
-            return from_anthropic_reply(resp.json())
+        # Shared retry policy (2.26, note 35) - cloud endpoint, full attempts.
+        resp = request_with_retries(lambda: requests.post(
+            self.url,
+            headers={
+                "x-api-key": self.key,  # NOT Authorization: Bearer
+                "anthropic-version": API_VERSION,
+            },
+            json=payload,
+            timeout=self.timeout,
+        ))
+        return from_anthropic_reply(resp.json())

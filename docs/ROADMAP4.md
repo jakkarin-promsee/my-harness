@@ -193,7 +193,7 @@ One command, two lanes, like every stage — plus the stage's own honesty device
 | Feature | Tier | Status |
 |---|---|---|
 | 2.25 Turn control (interrupt, steer, repair) | 1 — floor | **done** 2026-07-08 — note 34; `repair_dangling_calls` in `core/session.py`, both consumers wired (Ctrl+C arm + `--resume`), `/compact` belt; 201 offline tests; live resume-repair proven on ollama (model re-read instead of assuming — the wording worked) |
-| 2.26 Wire survival (backoff, 429) | 1 — floor | pending |
+| 2.26 Wire survival (backoff, 429) | 1 — floor | **done** 2026-07-08 — note 35; `request_with_retries` in `providers/base.py`, all three adapters rewired (three hand-rolled copies deleted); 208 offline tests; live happy path on ollama |
 | 2.27 Auto-compact | 1 — floor | pending |
 | 2.28 Headless mode (`-p`) | 1 — floor | pending |
 | 2.29 Ambiguity & character museum | 2 — mind | pending |
