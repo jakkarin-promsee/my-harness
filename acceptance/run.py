@@ -467,6 +467,11 @@ def run_once(task: dict, model, modes, specs, on_usage,
     )
     try:
         agent.run_turn(messages)
+        # Two-turn probes (2.29, note 38): the museum's character wing needs
+        # to push back on an answer - conversation, not just tasks.
+        if task.get("followup"):
+            messages.append({"role": "user", "content": task["followup"]})
+            agent.run_turn(messages)
         final = next(
             (m.get("content") for m in reversed(messages)
              if m.get("role") == "assistant" and m.get("content")),

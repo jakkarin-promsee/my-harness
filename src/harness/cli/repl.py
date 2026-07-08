@@ -420,15 +420,15 @@ def main() -> None:
     # The token meter: non-negotiable from day 1 — this project exists
     # because of token economics. Watch prompt_tokens climb call after call.
     # (Ollama dialect: it excludes KV-cached tokens, so it can also drop.)
-    totals = {"in": 0, "out": 0}
+    totals = {"in": 0, "out": 0, "think": 0}
 
     def on_usage(usage: dict) -> None:
         p = usage.get("prompt_tokens", 0)
         c = usage.get("completion_tokens", 0)
         # Gemini hides thinking in total_tokens (note 22, probe b): derive it.
         # Ollama's wire reports totals only - think stays 0 there, honestly.
-        t = usage.get("total_tokens")
-        think = max(0, t - p - c) if t else 0
+        t = usage.get("total_tokens", 0)
+        think = max(0, t - p - c) if t is not None else 0
         totals["in"] += p
         totals["out"] += c
         totals["think"] = totals.get("think", 0) + think
