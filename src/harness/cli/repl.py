@@ -10,6 +10,8 @@ Run:
     uv run python -m harness -y          # auto-approve gate (scripted runs)
     uv run python -m harness --mode explore   # read-only profile (note 16)
     uv run python -m harness --agent plan     # role from agents/*.md (note 17)
+    uv run python -m harness -p "task"        # headless: one turn, answer on
+                                              # stdout, exit 0/1 (note 37)
 """
 
 import argparse
@@ -251,25 +253,28 @@ def _color_diff_line(line: str) -> str:
     return line
 
 
-def make_gate(auto_approve: bool, modeset: ModeSet):
+def make_gate(auto_approve: bool, modeset: ModeSet, out=print):
     """The permission gate, mode-aware (docs/notes/10 + 16):
     deny -> refuse flatly (-y can NEVER override it);
     allow -> run silently (writes: only inside cwd — decide_call's scoping
     rule); ask -> y/N prompt (-y upgrades to yes). Reads the ACTIVE mode's
     policy per call, so /mode switches apply mid-session. Edits/writes render
-    a unified diff at the prompt instead of raw JSON args (note 19)."""
+    a unified diff at the prompt instead of raw JSON args (note 19).
+    `out` is the chrome channel: stderr in headless mode (note 37) so stdout
+    stays the answer. The EOFError->no rule doubles as the headless ask
+    policy: no human on stdin means the ask is denied, never hung."""
 
     def approve(name: str, arguments: dict) -> bool:
         decision = modeset.policy.decide_call(name, arguments)
         if decision == "deny":
-            print(f"  [policy] {name} is denied in mode '{modeset.active}'")
+            out(f"  [policy] {name} is denied in mode '{modeset.active}'")
             return False
         if decision == "allow" or auto_approve:
             return True
         diff = render_diff(name, arguments)
         if diff is not None:
             for line in diff.splitlines():
-                print(f"  {_color_diff_line(line)}")
+                out(f"  {_color_diff_line(line)}")
             prompt = f"  allow {name} on {arguments.get('path', '?')}? [y/N] "
         else:
             preview = json.dumps(arguments)
@@ -285,10 +290,29 @@ def make_gate(auto_approve: bool, modeset: ModeSet):
     return approve
 
 
+def final_answer(messages: list) -> str:
+    """Headless mode's deliverable (2.28, note 37): the turn succeeded iff
+    it ended in a PLAIN assistant text. A tool-call tail (MAX_STEPS runaway),
+    a tool-result tail (interrupt) or an empty reply all mean no answer —
+    exit code 1's whole truth table lives here."""
+    if not messages:
+        return ""
+    m = messages[-1]
+    if m.get("role") != "assistant" or m.get("tool_calls"):
+        return ""
+    return (m.get("content") or "").strip()
+
+
 def parse_args(argv=None) -> argparse.Namespace:
     parser = argparse.ArgumentParser(prog="harness")
     parser.add_argument("provider", nargs="?", default="ollama", choices=PROVIDERS)
     parser.add_argument("-y", "--yes", action="store_true", help="auto-approve the permission gate")
+    parser.add_argument(
+        "-p", "--prompt", default=None, metavar="TASK",
+        help="headless mode (note 37): run TASK as one turn, print the final "
+             "answer to stdout (chrome goes to stderr), exit 0/1. Composes "
+             "with --agent/--mode/--resume/-y; asks are denied unless -y",
+    )
     parser.add_argument(
         "--mode", default=None, metavar="NAME",
         help="permission mode to start in (chat/explore/build/auto; see harness.toml). "
@@ -311,6 +335,11 @@ def main() -> None:
     auto_approve = args.yes
     provider_name = args.provider
     provider = PROVIDERS[provider_name]
+    # Headless (2.28, note 37): stdout is the ANSWER, everything else is
+    # chrome and goes to stderr - the claude -p / codex exec convention that
+    # makes pipes and cron possible. `info` is the one seam.
+    headless = args.prompt is not None
+    info = (lambda *a: print(*a, file=sys.stderr)) if headless else print
 
     # Roles (note 17): the code-level `build` built-in + agents/*.md at cwd.
     # build has no file — its body IS prompts/system.md (one fact, one home).
@@ -347,8 +376,8 @@ def main() -> None:
         for m in repaired:
             store.append(session_id, m)
         if repaired:
-            print(f"  [repair] closed {len(repaired)} tool call(s) left dangling by an interrupted turn")
-        print(f"resumed session {session_id} ({len(messages)} messages)")
+            info(f"  [repair] closed {len(repaired)} tool call(s) left dangling by an interrupted turn")
+        info(f"resumed session {session_id} ({len(messages)} messages)")
     else:
         session_id = store.new()
         messages = []
@@ -371,7 +400,8 @@ def main() -> None:
     voice = agent_specs[active_agent].voice or primary_cfg.get("voice", "normal")
     if voice not in VOICES:
         sys.exit(f"unknown voice {voice!r} - available: {', '.join(VOICES)}")
-    model = make_model(primary_cfg, on_delta=StreamPrinter())
+    # No streaming in headless: nobody watches deltas; the answer prints once.
+    model = make_model(primary_cfg, on_delta=None if headless else StreamPrinter())
     # Reasoning default: role frontmatter beats the provider's 2.20 pin;
     # /think still overrides both at runtime.
     model.think = agent_specs[active_agent].think or primary_cfg.get("think")
@@ -408,7 +438,7 @@ def main() -> None:
         line += f" | session: {totals['in']:,} in / {totals['out']:,} out"
         if totals.get("think"):
             line += f" / {totals['think']:,} think"
-        print(line)
+        info(line)
 
     def persist(message: dict) -> None:
         store.append(session_id, message)
@@ -420,13 +450,13 @@ def main() -> None:
     if mode_name not in modes:
         sys.exit(f"unknown mode {mode_name!r} - available: {', '.join(sorted(modes))}")
     modeset = ModeSet(modes, active=mode_name)
-    gate = make_gate(auto_approve, modeset)
+    gate = make_gate(auto_approve, modeset, out=info)
 
     # MCP servers (2.16, note 33): external tool processes from harness.toml
     # mount into the same registry as mcp__<server>__<tool>. No permission
     # code needed: the names fall into each mode's `default` bucket — ask in
     # build/auto, deny in explore; chat sends no tools at all.
-    mcp_registry, mcp_schemas, mcp_servers = mcp.connect(mcp.load_config(), emit=print)
+    mcp_registry, mcp_schemas, mcp_servers = mcp.connect(mcp.load_config(), emit=info)
     base_registry = dict(basic.REGISTRY, **mcp_registry)
     base_schemas = basic.SCHEMAS + mcp_schemas
 
@@ -440,7 +470,7 @@ def main() -> None:
         schemas=base_schemas,
         needs_permission=set(base_registry),  # child: gate decides via policy
         approve=gate,
-        emit=print,
+        emit=info,
         get_parent_messages=lambda: messages,
         # Callables, not strings: children assemble at SPAWN time (note 24),
         # so /prompt and /agent switches reach them.
@@ -452,7 +482,7 @@ def main() -> None:
     # The todo list is top-level only: children never see its schema, so they
     # never call it (docs/notes/13-todo-tool.md). Its snapshot feeds the
     # attention anchors (2.23).
-    todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=print)
+    todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=info)
     registry = dict(base_registry, spawn_subagent=spawn_fn, todo_write=todo_fn)
     schemas = base_schemas + [spawn_schema, todo_schema]
 
@@ -466,7 +496,8 @@ def main() -> None:
         # who runs silently (allow), who prompts (ask), who never runs (deny).
         needs_permission=set(registry),
         approve=gate,
-        emit_thinking=print_thinking,
+        emit=info,
+        emit_thinking=(lambda t: info(f"{DIM}  [thinking] {t}{RESET}")) if headless else print_thinking,
         on_usage=on_usage,
         on_message=persist,
         max_tool_chars=primary_cfg.get("max_tool_chars", 2000),
@@ -476,9 +507,9 @@ def main() -> None:
     )
 
     window = primary_cfg.get("context_window", 0)
-    print(f"researcher-harness | provider: {provider_name} | model: {primary_cfg['model']}"
-          f" | mode: {modeset.active} | agent: {active_agent} | prompt: {tier} | voice: {voice}")
-    print(f"session: {session_id} | type a task, 'exit' to quit")
+    info(f"researcher-harness | provider: {provider_name} | model: {primary_cfg['model']}"
+         f" | mode: {modeset.active} | agent: {active_agent} | prompt: {tier} | voice: {voice}")
+    info(f"session: {session_id}" + ("" if headless else " | type a task, 'exit' to quit"))
     if not messages:  # fresh session gets the system prompt as message zero
         messages = [{"role": "system", "content": assemble(agent_specs[active_agent])}]
         persist(messages[0])
@@ -490,7 +521,7 @@ def main() -> None:
         session_id = store.new()
         for m in messages:
             persist(m)
-        print(f"  agent: {active_agent} | continued in session {session_id}")
+        info(f"  agent: {active_agent} | continued in session {session_id}")
     def run_compact() -> None:
         """The ONE compact path (2.27, note 36): /compact and the auto
         trigger share it. Uses agent.model — the ACTIVE model — which also
@@ -518,6 +549,33 @@ def main() -> None:
             persist(m)
         print(budget.budget_line(budget.estimate_tokens(messages), window))
         print(f"  continued in session {session_id}")
+
+    if headless:
+        # One turn, then exit (2.28, note 37). No auto-compact, no
+        # reflection: both act at the turn boundary for the NEXT turn's
+        # benefit, and there is no next turn - a later --resume inherits.
+        # The session persists like any other, so -p + --resume chains.
+        messages.append({"role": "user", "content": args.prompt})
+        persist(messages[-1])
+        died = None
+        try:
+            agent.run_turn(messages)
+        except requests.RequestException as e:
+            died = f"API error: {e}"
+        except KeyboardInterrupt:
+            for m in repair_dangling_calls(messages):
+                persist(m)
+            died = "interrupted"
+        text = final_answer(messages)
+        if died:
+            info(f"  [!] {died}")
+        if text:
+            print(text)  # stdout: the deliverable, nothing else
+        info(f"session total: {totals['in']:,} in / {totals['out']:,} out tokens"
+             f" | session: {session_id}")
+        for s in mcp_servers:
+            s.stop()
+        sys.exit(0 if text and not died else 1)
 
     while True:
         try:

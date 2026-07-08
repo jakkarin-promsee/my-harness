@@ -195,7 +195,7 @@ One command, two lanes, like every stage — plus the stage's own honesty device
 | 2.25 Turn control (interrupt, steer, repair) | 1 — floor | **done** 2026-07-08 — note 34; `repair_dangling_calls` in `core/session.py`, both consumers wired (Ctrl+C arm + `--resume`), `/compact` belt; 201 offline tests; live resume-repair proven on ollama (model re-read instead of assuming — the wording worked) |
 | 2.26 Wire survival (backoff, 429) | 1 — floor | **done** 2026-07-08 — note 35; `request_with_retries` in `providers/base.py`, all three adapters rewired (three hand-rolled copies deleted); 208 offline tests; live happy path on ollama |
 | 2.27 Auto-compact | 1 — floor | **done** 2026-07-08 — note 36; `should_compact` + one `run_compact` path (also fixes /compact-after-/agent stale model); live on ollama: fired at the boundary, 4,973→97 tokens; discovery: 8K lanes need 0.6 (the summarize call must itself fit — 400 receipt) |
-| 2.28 Headless mode (`-p`) | 1 — floor | pending |
+| 2.28 Headless mode (`-p`) | 1 — floor | **done** 2026-07-08 — note 37; stdout = answer only, exit code = `final_answer` truth table, asks EOF-deny; live: exact stdout + exit 0, and a `-p --resume` chain recalled the first run. **TIER 1 COMPLETE — the floor holds (notes 34–37, 212 offline tests)** |
 | 2.29 Ambiguity & character museum | 2 — mind | pending |
 | 2.30 The two worlds (core/overlay split) | 2 — mind | pending |
 | 2.31 Agency under ambiguity (`ask_user`) | 2 — mind | pending |

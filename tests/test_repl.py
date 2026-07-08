@@ -46,6 +46,26 @@ def test_diff_render_is_capped(tmp_path):
     assert lines[-1].startswith("... (") and "more diff lines" in lines[-1]
 
 
+def test_parse_args_headless_flag():
+    # 2.28 (note 37): -p carries the task; absence keeps interactive defaults.
+    args = repl.parse_args(["ollama", "-p", "do the thing"])
+    assert args.prompt == "do the thing"
+    assert repl.parse_args(["ollama"]).prompt is None
+
+
+def test_final_answer_truth_table():
+    """The headless exit code's whole logic (2.28): only a plain assistant
+    text tail counts as a deliverable."""
+    ok = [{"role": "user", "content": "q"}, {"role": "assistant", "content": " hi "}]
+    assert repl.final_answer(ok) == "hi"
+    runaway = [{"role": "assistant", "content": None, "tool_calls": [{"id": "c1"}]}]
+    assert repl.final_answer(runaway) == ""       # MAX_STEPS tail
+    interrupted = [{"role": "tool", "tool_call_id": "c1", "content": "x"}]
+    assert repl.final_answer(interrupted) == ""   # tool-result tail
+    assert repl.final_answer([{"role": "assistant", "content": None}]) == ""
+    assert repl.final_answer([]) == ""
+
+
 def test_gate_shows_diff_and_asks_on_path(monkeypatch, capsys):
     modeset = ModeSet({"build": Mode(Policy(default="ask"))})
     gate = repl.make_gate(False, modeset)

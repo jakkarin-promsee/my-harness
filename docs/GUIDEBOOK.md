@@ -44,6 +44,7 @@ uv run harness gemini-flash   # the quality lane
 | `-y` / `--yes` | auto-approve every *ask* — **never** overrides a deny |
 | `--resume [ID]` | continue a saved session (latest if no ID) |
 | `--sessions` | list saved sessions and exit |
+| `-p "TASK"` | **headless mode** (note 37): run TASK as one turn, print only the final answer to stdout (chrome → stderr), exit 0/1. Composes with everything above — `-p --resume` chains runs, so cron and pipelines work; *ask*-gated tools are denied unless `-y` |
 
 ## Built-in slash commands
 
