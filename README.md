@@ -27,40 +27,40 @@ the trust (Stage 3).
 3. **Learning & independence.** Understand the machine from the inside, and own a
    working, provider-agnostic copy of it — whatever happens to any one vendor.
 
-## What it does today
+## What it does (release 1)
 
 | Piece | What it is |
 |---|---|
-| **The loop** | One model call → run the tool calls it asks for → append results → repeat. The entire "agent" is [`src/harness/core/loop.py`](src/harness/core/loop.py). |
-| **Tools** | Read / edit files, search, run commands, fetch web pages (`web_fetch`), and a **todo** tool — an external plan the model can't forget. Edits show a unified diff at the approval prompt. |
+| **The loop** | One model call → run the tool calls it asks for → append results → repeat. The entire "agent" is [`src/harness/core/loop.py`](src/harness/core/loop.py) — pure, injected, testable for zero tokens. |
+| **Tools** | Read / edit files (edits show a unified diff at the prompt), search, run commands, fetch web pages, and a **todo** tool — an external plan the model can't forget. Every observation is *framed*: first line says what happened and the shape of the result. |
+| **MCP client** | Any [MCP](https://modelcontextprotocol.io) server in `harness.toml` mounts its tools as `mcp__server__tool` — one client, infinite tools. Ships with DuckDuckGo web search, no API key needed. `/mcp` lists what's connected. |
 | **Subagents** | Delegate a subtask to a fresh (or forked) child loop and get back just its result — optionally wearing a named role. |
-| **Providers** | Ollama (local, free — via its **native** `/api/chat`), Gemini (OpenAI-compat), and Anthropic (native), each behind its own adapter. The loop speaks one dialect; adapters translate both directions. |
+| **Providers** | Ollama (local, free — native `/api/chat`), Gemini flash + flash-lite (OpenAI-compat), and Anthropic (native), each behind its own adapter. The loop speaks one dialect; adapters translate both directions. |
 | **Visible mind** | Thinking and narration stream live to the terminal, so you watch it reason and talk instead of staring at a spinner. |
-| **Modes** | Switchable permission profiles — from "just chat" to "auto-approve writes in this folder" (see the guidebook below). |
-| **Agents (roles)** | Markdown-defined personalities with their own prompt, default mode, and optionally their own model. |
+| **The cognitive core** | A sectioned system-prompt backbone with a four-tier ladder (MICRO fits the 8K local card at 264 tokens), an orientation map in the first message, attention anchors for long sessions, voice & effort knobs. |
+| **Modes** | Switchable permission profiles — from "just chat" to "auto-approve writes in this folder". Deny is absolute in every mode; policy lives in versioned [`harness.toml`](harness.toml). |
+| **Agents (roles)** | Markdown-defined personalities in [`agents/`](agents/) with their own prompt, default mode, and optionally their own model. |
 | **Skills** | `skills/*/SKILL.md` — procedures the **model** discovers from one description line and reads on demand (the open Agent Skills standard). |
-| **Reasoning control** | `/think off…high` — the chain-of-thought budget knob, per session or per role. |
-| **Permissions** | [`harness.toml`](harness.toml) decides per tool: allow / ask / deny. Deny is absolute in every mode. |
-| **Token meter** | Every call reports tokens. The project exists because of context economics, so the cost is always on screen. |
+| **Reasoning control** | `/think off…high` — the chain-of-thought budget knob, per session or per role. Off by default: measured, not assumed. |
+| **Sessions & the meter** | Every message journals to `sessions/*.jsonl` as it happens; `--resume` replays. Every call prints tokens — including Gemini's *hidden* thinking. Experimental: per-turn reflection on the local thinking lane. |
 
-## Status
+The full manual — every command, knob, and extension recipe — is
+**[docs/GUIDEBOOK.md](docs/GUIDEBOOK.md)**.
 
-**Stages 2R (frontier parity) and 2C (the cognitive core) both closed 2026-07-08.**
-The harness has modes, roles, reasoning control, web fetch, skills — and since 2C, a
-*strong internal system*: a sectioned system-prompt backbone with a four-tier ladder
-(MICRO fits the 8K local card at 264 tokens), voice & effort knobs (`explain` is the
-Gemini default; flash's hidden default thinking is pinned off — it measurably bought
-nothing), framed line-numbered pageable tool observations, an orientation map in the
-first message, and attention anchors for long sessions.
+## Status — release 1
 
-- **179 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
-- **Exit gate:** 14-task core + a 4-task *failure museum* mined from real live sessions
-  (`uv run python acceptance/run.py <provider> [--suite museum --n 3]`). At close:
-  flash **14/14 + museum 3/3 by majority** (the 2.17 baseline was 1/3), the never-tuned
-  hold-out task passed its first-ever runs 3/3, local **14/14-by-majority at MICRO**.
+**Stages 0–2 are complete** (Stage 2 core, 2R frontier parity, 2C cognitive core,
+and the MCP client all closed 2026-07-08). What that means, measured:
+
+- **196 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
+- **Exit gate:** a 15-task core + a 4-task *failure museum* mined from real live
+  sessions. At close: flash **14/14 core + museum 3/3 by majority** (the untuned
+  baseline was 1/3), the never-tuned hold-out task passed its first-ever runs 3/3,
+  local **14/14-by-majority** on a 4B model at the 264-token MICRO prompt, and the
+  MCP search task passed on all three lanes.
 
 Next: **Stage 3** — surgical context ops, prompt middleware, checkpoints; the three
-pains above become features. Plans: [docs/ROADMAP.md](docs/ROADMAP.md) →
+pains above become features. Plans and history: [docs/ROADMAP.md](docs/ROADMAP.md) →
 [docs/ROADMAP2.md](docs/ROADMAP2.md) → [docs/ROADMAP3.md](docs/ROADMAP3.md).
 
 ## Quickstart
@@ -71,7 +71,7 @@ uv run pytest -q
 
 # run the harness (local model is free)
 uv run harness                      # Ollama, build mode, default agent
-uv run harness gemini               # paid fallback — quality validation
+uv run harness gemini-flash         # the quality lane (paid)
 uv run harness --agent plan         # start as the read-only planning role
 uv run harness --mode explore -y    # look-don't-touch, no prompts
 
@@ -79,117 +79,9 @@ uv run harness --mode explore -y    # look-don't-touch, no prompts
 uv run python acceptance/run.py <provider>
 ```
 
-Local dev runs on `qwen3:4b-instruct` via Ollama (4 GB VRAM friendly). Gemini is the
-paid fallback for validating response *quality*; debug loop logic locally so a runaway
-loop costs $0. Anthropic's adapter is built but stays live-untested until the key is set
-deliberately.
-
----
-
-# The guidebook — driving the harness
-
-Everything below happens inside `uv run harness [provider]`. Type a task at the
-`you>` prompt; slash commands control the harness itself.
-
-## Launch flags
-
-| Flag | What it does |
-|---|---|
-| `ollama` \| `gemini` \| `anthropic` | pick the provider (default: `ollama`, free) |
-| `--mode NAME` | start in a permission mode (`chat`/`explore`/`build`/`auto`); beats the agent's default |
-| `--agent NAME` | start as a role from `agents/*.md` (default: `build`) |
-| `-y` / `--yes` | auto-approve every *ask* — **never** overrides a deny |
-| `--resume [ID]` | continue a saved session (latest if no ID) |
-| `--sessions` | list saved sessions and exit |
-
-## Built-in slash commands
-
-| Command | What it does |
-|---|---|
-| `/help` | list builtins + the template commands found in `commands/` |
-| `/mode` · `/mode NAME` | show / switch the permission profile, mid-session |
-| `/agent` · `/agent NAME` | list roles / switch role (prompt + default mode + pinned model) |
-| `/think` · `/think VALUE` | show / set reasoning: `off` `on` `low` `medium` `high` |
-| `/prompt` · `/prompt TIER` | show the prompt-ladder tiers with measured token costs / switch (`micro` `compact` `standard` `full`) — local defaults to `micro`, Gemini to `standard` |
-| `/voice` · `/voice NAME` | how much the agent talks: `quiet` (scripted runs) · `normal` (local default) · `explain` (Gemini default — narrates the plan, teaches as it goes, closes with a verified summary) |
-| `/tokens` | context size vs. the model's window |
-| `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file) |
-| `/NAME args` | anything else runs `commands/NAME.md` with `{{args}}` substituted |
-
-## Modes — how much can it touch?
-
-A mode is a named permission profile in [`harness.toml`](harness.toml). Two laws hold
-everywhere: the **deny list is absolute** (even `-y` can't cross it), and an auto-approved
-write only counts **inside the working directory** — outside, it asks anyway.
-
-| Mode | Feels like | What runs without asking |
-|---|---|---|
-| `chat` | the plain website chat | nothing — tools aren't even offered |
-| `explore` | look, don't touch | reads (`read_file`, `grep`, `glob`, `list_dir`); everything else is refused |
-| `build` | the default | reads run; writes/edits/shell ask y/N |
-| `auto` | trusted coding flow | reads + writes/edits inside this folder; shell still asks |
-
-When a tool is refused, the model is *told* — it reads the denial as a tool result and
-adapts (usually by explaining what it would have done). Design: [note 16](docs/notes/16-permission-modes.md).
-
-## Agents — who is it?
-
-A role is a markdown file in [`agents/`](agents/): frontmatter (description, default
-`mode`, optional pinned `model`, optional `think` level) + body = its system prompt.
-Ships with:
-
-| Role | Mode | Use it for |
-|---|---|---|
-| `build` | build | the default working agent (its prompt is `src/harness/prompts/system.md`) |
-| `plan` | explore | "figure out how, don't do it" — every plan ends by offering `/agent build` to execute |
-| `chill` | chat | thinking out loud with no tools in reach |
-| `reviewer` | explore | adversarial read-only review — reports problems, fixes nothing |
-
-The flow that earns its keep: `/agent plan` → discuss until the plan is right →
-`/agent build` → "execute the plan above". History carries over; each switch continues
-in a fresh session file so `--resume` stays truthful.
-
-**Add a role:** drop `agents/myrole.md` with a `description:` line and a prompt. Pin
-`model: gemini` to give one role the smarter paid model while everything else stays
-local — that split (strong planner, cheap executor) is aider's benchmark-winning trick.
-Subagents can wear roles too: the model can call `spawn_subagent(agent="reviewer", ...)`.
-Design: [note 17](docs/notes/17-agents.md).
-
-## Reasoning — pay for thinking only when it helps
-
-`/think on` makes a capable model reason in a **separated trace**: streamed dim to your
-terminal, then *stripped from history* so it never bills a later call. `/think off`
-suppresses it — since 2.19 this really is an off-switch on Gemini (`reasoning_effort:
-"none"`), which matters because **flash thinks by default and bills it invisibly**: the
-meter's `N think` count (derived as `total − prompt − completion`) is how you see it.
-`low/medium/high` set effort on models with levels (gpt-oss-class, Gemini, Anthropic budgets).
-
-Why the default is off locally, in one measured line: thinking qwen3 burned **10× the
-tokens for a worse score** (13,614 vs 1,460; 5/7 vs 7/7). And mind the fine print: this
-knob needs Ollama's *native* API (the OpenAI-compat endpoint silently ignores it — we
-probed), and fixed-mode models ignore it entirely: the 2507 `-instruct` never thinks,
-the 2507 thinking variant can't stop. Economics + probes: [note 18](docs/notes/18-reasoning-control.md).
-
-## Sessions, tokens, and the meter
-
-Every message lands in `sessions/<id>.jsonl` the moment it exists — a crash never loses
-more than nothing. `--resume` replays the latest (or a named) session; `/compact` and
-`/agent` switches continue in a new file so old transcripts stay intact.
-
-After every call the meter prints `call: X in / Y out | session: totals`, and after each
-turn the context line shows how full the window is. When Gemini reports more `total`
-tokens than `in + out`, the difference is *hidden thinking* — the meter is how you
-catch it.
-
-## Permissions — the fine print
-
-[`harness.toml`](harness.toml) is versioned on purpose: the policy is auditable and
-travels with the repo. Per tool: `allow` (silent), `ask` (y/N), `deny` (refused flatly).
-Precedence is fail-closed — deny > ask > allow — and `-y` upgrades *ask* only. The
-`[modes.*]` sections are the profiles `/mode` switches between; the plain
-`[permissions]` table *is* `build`. Design: [note 10](docs/notes/10-permissions-v2.md) + [16](docs/notes/16-permission-modes.md).
-
----
+Local dev runs on `qwen3:4b-instruct` via Ollama (4 GB VRAM friendly). The Gemini
+flash tier is the quality target; debug loop logic locally so a runaway loop costs $0.
+Anthropic's adapter is built but stays live-untested until the key is set deliberately.
 
 ## Layout
 
@@ -200,11 +92,14 @@ runtime config the harness reads from the working directory stays at root.
 |---|---|
 | `src/harness/` | The living codebase — `core/`, `providers/`, `tools/`, `cli/`, `prompts/` (installable package) |
 | `tests/` | FakeModel pytest suite (the loop's contract, offline) |
-| `acceptance/` | The live-model exit gate (Stage 2, growing through 2R) |
-| `docs/` | [ROADMAP](docs/ROADMAP.md), [ROADMAP2](docs/ROADMAP2.md), design [notes/](docs/notes), [open problems](docs/problem.md) |
+| `acceptance/` | The live-model exit gate: core tasks + the failure museum |
+| `docs/` | [GUIDEBOOK](docs/GUIDEBOOK.md), [ROADMAP](docs/ROADMAP.md)s, design [notes/](docs/notes) (the why, one per feature), [open problems](docs/problem.md) |
 | `commands/` | Slash-command template library (`/name args` → `commands/name.md`) |
 | `agents/` | The role library (`/agent name` → `agents/name.md`) |
+| `skills/` | The model's own procedure library (`skills/*/SKILL.md`, description-triggered) |
 | `harness.toml`, `AGENTS.md` | Permissions policy and project memory — read from cwd at runtime |
+| `sessions/` | Runtime session journals (`*.jsonl`, gitignored) |
 | `archive/` | Frozen Stage-1 `mvp/`, throwaway `labs/`, and the real `prompt/` library (Stage-3 raw material) |
 
-Working rules and the project's constitution are in [CLAUDE.md](CLAUDE.md).
+Working rules and the project's constitution are in [CLAUDE.md](CLAUDE.md);
+how to use and how to extend, in [docs/GUIDEBOOK.md](docs/GUIDEBOOK.md).

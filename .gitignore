@@ -20,6 +20,6 @@ tempCodeRunnerFile.py
 # claude code runtime junk
 .claude/scheduled_tasks.lock
 
-# harness runtime data
+# harness runtime data + live-run logs (results are recorded in docs/notes/)
 sessions/
-acceptance-*.log
+*.log
