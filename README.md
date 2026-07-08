@@ -1,7 +1,7 @@
 # researcher-harness
 
 A **from-scratch agent harness** — the loop, tools, providers, and context plumbing
-that sit *under* something like Claude Code — rebuilt by hand to understand how the
+that sit _under_ something like Claude Code — rebuilt by hand to understand how the
 real ones actually work. Learning-first: **understanding beats features, every time.**
 
 Two reasons it exists:
@@ -29,20 +29,20 @@ the trust (Stage 3).
 
 ## What it does (release 1)
 
-| Piece | What it is |
-|---|---|
-| **The loop** | One model call → run the tool calls it asks for → append results → repeat. The entire "agent" is [`src/harness/core/loop.py`](src/harness/core/loop.py) — pure, injected, testable for zero tokens. |
-| **Tools** | Read / edit files (edits show a unified diff at the prompt), search, run commands, fetch web pages, and a **todo** tool — an external plan the model can't forget. Every observation is *framed*: first line says what happened and the shape of the result. |
-| **MCP client** | Any [MCP](https://modelcontextprotocol.io) server in `harness.toml` mounts its tools as `mcp__server__tool` — one client, infinite tools. Ships with DuckDuckGo web search, no API key needed. `/mcp` lists what's connected. |
-| **Subagents** | Delegate a subtask to a fresh (or forked) child loop and get back just its result — optionally wearing a named role. |
-| **Providers** | Ollama (local, free — native `/api/chat`), Gemini flash + flash-lite (OpenAI-compat), and Anthropic (native), each behind its own adapter. The loop speaks one dialect; adapters translate both directions. |
-| **Visible mind** | Thinking and narration stream live to the terminal, so you watch it reason and talk instead of staring at a spinner. |
-| **The cognitive core** | A sectioned system-prompt backbone with a four-tier ladder (MICRO fits the 8K local card at 264 tokens), an orientation map in the first message, attention anchors for long sessions, voice & effort knobs. |
-| **Modes** | Switchable permission profiles — from "just chat" to "auto-approve writes in this folder". Deny is absolute in every mode; policy lives in versioned [`harness.toml`](harness.toml). |
-| **Agents (roles)** | Markdown-defined personalities in [`agents/`](agents/) with their own prompt, default mode, and optionally their own model. |
-| **Skills** | `skills/*/SKILL.md` — procedures the **model** discovers from one description line and reads on demand (the open Agent Skills standard). |
-| **Reasoning control** | `/think off…high` — the chain-of-thought budget knob, per session or per role. Off by default: measured, not assumed. |
-| **Sessions & the meter** | Every message journals to `sessions/*.jsonl` as it happens; `--resume` replays. Every call prints tokens — including Gemini's *hidden* thinking. Experimental: per-turn reflection on the local thinking lane. |
+| Piece                    | What it is                                                                                                                                                                                                                                                   |
+| ------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| **The loop**             | One model call → run the tool calls it asks for → append results → repeat. The entire "agent" is [`src/harness/core/loop.py`](src/harness/core/loop.py) — pure, injected, testable for zero tokens.                                                          |
+| **Tools**                | Read / edit files (edits show a unified diff at the prompt), search, run commands, fetch web pages, and a **todo** tool — an external plan the model can't forget. Every observation is _framed_: first line says what happened and the shape of the result. |
+| **MCP client**           | Any [MCP](https://modelcontextprotocol.io) server in `harness.toml` mounts its tools as `mcp__server__tool` — one client, infinite tools. Ships with DuckDuckGo web search, no API key needed. `/mcp` lists what's connected.                                |
+| **Subagents**            | Delegate a subtask to a fresh (or forked) child loop and get back just its result — optionally wearing a named role.                                                                                                                                         |
+| **Providers**            | Ollama (local, free — native `/api/chat`), Gemini flash + flash-lite (OpenAI-compat), and Anthropic (native), each behind its own adapter. The loop speaks one dialect; adapters translate both directions.                                                  |
+| **Visible mind**         | Thinking and narration stream live to the terminal, so you watch it reason and talk instead of staring at a spinner.                                                                                                                                         |
+| **The cognitive core**   | A sectioned system-prompt backbone with a four-tier ladder (MICRO fits the 8K local card at 264 tokens), an orientation map in the first message, attention anchors for long sessions, voice & effort knobs.                                                 |
+| **Modes**                | Switchable permission profiles — from "just chat" to "auto-approve writes in this folder". Deny is absolute in every mode; policy lives in versioned [`harness.toml`](harness.toml).                                                                         |
+| **Agents (roles)**       | Markdown-defined personalities in [`agents/`](agents/) with their own prompt, default mode, and optionally their own model.                                                                                                                                  |
+| **Skills**               | `skills/*/SKILL.md` — procedures the **model** discovers from one description line and reads on demand (the open Agent Skills standard).                                                                                                                     |
+| **Reasoning control**    | `/think off…high` — the chain-of-thought budget knob, per session or per role. Off by default: measured, not assumed.                                                                                                                                        |
+| **Sessions & the meter** | Every message journals to `sessions/*.jsonl` as it happens; `--resume` replays. Every call prints tokens — including Gemini's _hidden_ thinking. Experimental: per-turn reflection on the local thinking lane.                                               |
 
 The full manual — every command, knob, and extension recipe — is
 **[docs/GUIDEBOOK.md](docs/GUIDEBOOK.md)**.
@@ -53,7 +53,7 @@ The full manual — every command, knob, and extension recipe — is
 and the MCP client all closed 2026-07-08). What that means, measured:
 
 - **196 offline tests** against a FakeModel — the loop's contract, zero tokens: `uv run pytest -q`
-- **Exit gate:** a 15-task core + a 4-task *failure museum* mined from real live
+- **Exit gate:** a 15-task core + a 4-task _failure museum_ mined from real live
   sessions. At close: flash **14/14 core + museum 3/3 by majority** (the untuned
   baseline was 1/3), the never-tuned hold-out task passed its first-ever runs 3/3,
   local **14/14-by-majority** on a 4B model at the 264-token MICRO prompt, and the
@@ -71,6 +71,7 @@ uv run pytest -q
 
 # run the harness (local model is free)
 uv run harness                      # Ollama, build mode, default agent
+uv run harness ollama-think         # Ollama, show thinking, slow but fun
 uv run harness gemini-flash         # the quality lane (paid)
 uv run harness --agent plan         # start as the read-only planning role
 uv run harness --mode explore -y    # look-don't-touch, no prompts
@@ -88,18 +89,18 @@ Anthropic's adapter is built but stays live-untested until the key is set delibe
 Code under `src/`, prose under `docs/`, frozen/experimental under `archive/`, and the
 runtime config the harness reads from the working directory stays at root.
 
-| Path | What it is |
-|---|---|
-| `src/harness/` | The living codebase — `core/`, `providers/`, `tools/`, `cli/`, `prompts/` (installable package) |
-| `tests/` | FakeModel pytest suite (the loop's contract, offline) |
-| `acceptance/` | The live-model exit gate: core tasks + the failure museum |
-| `docs/` | [GUIDEBOOK](docs/GUIDEBOOK.md), [ROADMAP](docs/ROADMAP.md)s, design [notes/](docs/notes) (the why, one per feature), [open problems](docs/problem.md) |
-| `commands/` | Slash-command template library (`/name args` → `commands/name.md`) |
-| `agents/` | The role library (`/agent name` → `agents/name.md`) |
-| `skills/` | The model's own procedure library (`skills/*/SKILL.md`, description-triggered) |
-| `harness.toml`, `AGENTS.md` | Permissions policy and project memory — read from cwd at runtime |
-| `sessions/` | Runtime session journals (`*.jsonl`, gitignored) |
-| `archive/` | Frozen Stage-1 `mvp/`, throwaway `labs/`, and the real `prompt/` library (Stage-3 raw material) |
+| Path                        | What it is                                                                                                                                            |
+| --------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `src/harness/`              | The living codebase — `core/`, `providers/`, `tools/`, `cli/`, `prompts/` (installable package)                                                       |
+| `tests/`                    | FakeModel pytest suite (the loop's contract, offline)                                                                                                 |
+| `acceptance/`               | The live-model exit gate: core tasks + the failure museum                                                                                             |
+| `docs/`                     | [GUIDEBOOK](docs/GUIDEBOOK.md), [ROADMAP](docs/ROADMAP.md)s, design [notes/](docs/notes) (the why, one per feature), [open problems](docs/problem.md) |
+| `commands/`                 | Slash-command template library (`/name args` → `commands/name.md`)                                                                                    |
+| `agents/`                   | The role library (`/agent name` → `agents/name.md`)                                                                                                   |
+| `skills/`                   | The model's own procedure library (`skills/*/SKILL.md`, description-triggered)                                                                        |
+| `harness.toml`, `AGENTS.md` | Permissions policy and project memory — read from cwd at runtime                                                                                      |
+| `sessions/`                 | Runtime session journals (`*.jsonl`, gitignored)                                                                                                      |
+| `archive/`                  | Frozen Stage-1 `mvp/`, throwaway `labs/`, and the real `prompt/` library (Stage-3 raw material)                                                       |
 
 Working rules and the project's constitution are in [CLAUDE.md](CLAUDE.md);
 how to use and how to extend, in [docs/GUIDEBOOK.md](docs/GUIDEBOOK.md).
