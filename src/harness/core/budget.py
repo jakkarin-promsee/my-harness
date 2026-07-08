@@ -44,7 +44,10 @@ def compact(model, messages: list) -> tuple[list, dict | None]:
     transcript) and what it loses (summarization is lossy for signal too).
     That is the point: this is the baseline, not the goal.
     """
-    transcript = json.dumps(messages[1:], ensure_ascii=False)
+    # Anchors are protocol, not signal (2.23, note 30) - they must not
+    # pollute the summary.
+    transcript = json.dumps(
+        [m for m in messages[1:] if m.get("meta") != "anchor"], ensure_ascii=False)
     reply = model.complete(
         [
             {"role": "system", "content": SUMMARIZER_PROMPT},

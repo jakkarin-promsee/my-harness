@@ -31,6 +31,7 @@ def translate_out(messages: list) -> list:
     out = []
     for m in messages:
         m = dict(m)
+        m.pop("meta", None)  # our protocol tag (2.23 anchors), not the wire's
         for call in m.get("tool_calls") or []:
             id_to_name[call.get("id")] = call["function"]["name"]
         if m.get("role") == "assistant" and m.get("tool_calls"):

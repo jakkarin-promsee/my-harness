@@ -421,7 +421,7 @@ def run_once(task: dict, model, modes, specs, on_usage,
         get_parent_messages=lambda m=messages: m,
         system_prompt=messages[0]["content"], on_usage=on_usage,
     )
-    todo_fn, todo_schema = make_todo_tool(emit=print)  # fresh list per run
+    todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=print)  # fresh list per run
     agent = Agent(
         model=model,
         registry=dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn),
@@ -429,6 +429,7 @@ def run_once(task: dict, model, modes, specs, on_usage,
         needs_permission=set(basic.REGISTRY) | {"spawn_subagent", "todo_write"},
         approve=gate, on_usage=on_usage,
         max_tool_chars=max_tool_chars,
+        get_plan=todo_snapshot,
     )
     try:
         agent.run_turn(messages)

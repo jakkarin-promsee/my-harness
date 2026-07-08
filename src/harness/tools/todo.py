@@ -43,9 +43,14 @@ TODO_SCHEMA = {
 
 
 def make_todo_tool(emit=print):
-    """Returns (todo_write, TODO_SCHEMA); the checklist lives in this closure,
-    so each agent that gets its own factory call gets its own plan."""
+    """Returns (todo_write, TODO_SCHEMA, snapshot); the checklist lives in
+    this closure, so each agent that gets its own factory call gets its own
+    plan. `snapshot` renders the current list for the 2.23 attention anchors
+    ("" when no plan exists) — one closure, one home."""
     state: list[dict] = []
+
+    def snapshot() -> str:
+        return "\n".join(f"{GLYPH[t['status']]} {t['content']}" for t in state)
 
     def todo_write(todos: list) -> str:
         for item in todos:
@@ -65,4 +70,4 @@ def make_todo_tool(emit=print):
         # its own plan again every update is the steering effect we want.
         return summary + ("\n" + rendered if rendered else "")
 
-    return todo_write, TODO_SCHEMA
+    return todo_write, TODO_SCHEMA, snapshot

@@ -4,7 +4,7 @@ The heart of the harness plus the bookkeeping that keeps it alive. Each module's
 
 | File | What it does | Why (note) |
 |---|---|---|
-| `loop.py` | **The agent loop.** One model call → run the tool calls → append results → repeat. Pure and injected (no HTTP, no I/O it wasn't handed). Handles the empty-reply and cut-off (`length`) nudges. | 00, 11 |
+| `loop.py` | **The agent loop.** One model call → run the tool calls → append results → repeat. Pure and injected (no HTTP, no I/O it wasn't handed). Handles the empty-reply and cut-off (`length`) nudges, and re-anchors attention after K quiet tool steps (meta-tagged reminder; 2.23). | 00, 11, 30 |
 | `context.py` | Assembles the first (system) message: the **backbone** (six tagged sections in `prompts/system.md`; roles extend it, `backbone: false` opts out) + the active role's body + an env block + `AGENTS.md` from the cwd + the skills block. | 06, 07, 20, 23 |
 | `permissions.py` | Three-state policy (allow / ask / deny) from `harness.toml` + named **modes** (chat / explore / build / auto) switchable at runtime. Fail-closed: deny > ask > allow; `-y` upgrades *ask* only, never deny; an allow on `write_file`/`edit_file` counts inside cwd only. | 10, 16 |
 | `session.py` | One JSONL file per session, one line per message the moment it exists. Resume = replay the lines. | 05 |

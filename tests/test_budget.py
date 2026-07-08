@@ -40,3 +40,22 @@ def test_compact_replaces_history_and_surfaces_cost():
     assert "compacted" in new_messages[1]["content"].lower()
     assert usage == {"prompt_tokens": 500, "completion_tokens": 40}  # cost visible
     assert messages[0]["content"] == "SYS"  # original list untouched (caller decides)
+
+
+def test_compact_drops_anchors_before_summarizing():
+    # 2.23 (note 30): anchors are protocol, not signal.
+    from harness.core import budget
+    from tests.fakes import FakeModel, text_reply
+
+    class Spy(FakeModel):
+        def complete(self, messages, schemas):
+            self.seen = messages
+            return super().complete(messages, schemas)
+
+    model = Spy([text_reply("summary")])
+    msgs = [{"role": "system", "content": "s"},
+            {"role": "user", "content": "real ask"},
+            {"role": "user", "content": "(Attention check)", "meta": "anchor"}]
+    budget.compact(model, msgs)
+    assert "Attention check" not in model.seen[1]["content"]
+    assert "real ask" in model.seen[1]["content"]

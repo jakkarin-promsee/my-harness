@@ -187,3 +187,52 @@ def test_usage_reaches_the_meter_hook():
     model = FakeModel([reply])
     make_agent(model, on_usage=seen.append).run_turn([{"role": "user", "content": "hi"}])
     assert seen == [{"prompt_tokens": 7, "completion_tokens": 3}]
+
+
+# ---- attention anchors (2.23, note 30) --------------------------------------
+
+def _tool_step(i):
+    return tool_reply((f"id{i}", "read_file", '{"path": "x.txt"}'))
+
+
+def test_anchor_appears_after_quiet_steps_and_carries_the_ask():
+    replies = [_tool_step(i) for i in range(3)] + [text_reply("done")]
+    model = FakeModel(replies)
+    agent = Agent(model=model, registry={"read_file": lambda path: "data"},
+                  schemas=[], anchor_after=2, get_plan=lambda: "[>] step one")
+    messages = [{"role": "system", "content": "s"},
+                {"role": "user", "content": "find the treasure"}]
+    agent.run_turn(messages)
+    anchors = [m for m in messages if m.get("meta") == "anchor"]
+    assert len(anchors) == 1
+    assert "find the treasure" in anchors[0]["content"]
+    assert "[>] step one" in anchors[0]["content"]
+
+
+def test_second_anchor_replaces_the_first():
+    replies = [_tool_step(i) for i in range(4)] + [text_reply("done")]
+    model = FakeModel(replies)
+    agent = Agent(model=model, registry={"read_file": lambda path: "data"},
+                  schemas=[], anchor_after=2)
+    messages = [{"role": "system", "content": "s"},
+                {"role": "user", "content": "task"}]
+    agent.run_turn(messages)
+    anchors = [m for m in messages if m.get("meta") == "anchor"]
+    assert len(anchors) == 1  # one LIVE anchor at a time
+    assert "not user feedback" in anchors[0]["content"]
+
+
+def test_todo_write_resets_the_anchor_clock():
+    replies = [_tool_step(0),
+               tool_reply(("t1", "todo_write", '{"todos": []}')),
+               _tool_step(2),
+               text_reply("done")]
+    model = FakeModel(replies)
+    agent = Agent(model=model,
+                  registry={"read_file": lambda path: "data",
+                            "todo_write": lambda todos: "ok"},
+                  schemas=[], anchor_after=2)
+    messages = [{"role": "system", "content": "s"},
+                {"role": "user", "content": "task"}]
+    agent.run_turn(messages)
+    assert not [m for m in messages if m.get("meta") == "anchor"]

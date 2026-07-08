@@ -90,3 +90,12 @@ def test_think_off_sends_reasoning_effort_none():
     assert m.body([], [])["reasoning_effort"] == "none"
     m.think = None  # the default still sends NOTHING (flash-lite pays for no param)
     assert "reasoning_effort" not in m.body([], [])
+
+
+def test_meta_never_crosses_the_wire():
+    # 2.23 (note 30): anchors are OUR protocol; strict endpoints 400 on
+    # unknown fields.
+    from harness.providers.openai_compat import OpenAICompatModel
+    m = OpenAICompatModel("http://x", "k", "model")
+    body = m.body([{"role": "user", "content": "hi", "meta": "anchor"}], [])
+    assert body["messages"] == [{"role": "user", "content": "hi"}]

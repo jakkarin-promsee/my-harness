@@ -70,3 +70,17 @@ def test_resume_reproduces_the_conversation(tmp_path):
         emit=lambda line: None, on_message=lambda m: store.append(sid, m),
     ).run_turn(messages)
     assert store.load(sid) == messages  # disk == memory, always
+
+
+def test_prune_stale_anchors_keeps_only_the_last():
+    # 2.23 (note 30): append-only JSONL replays every anchor that ever
+    # existed; only the newest was live.
+    from harness.core.session import prune_stale_anchors
+    msgs = [{"role": "user", "content": "ask"},
+            {"role": "user", "content": "a1", "meta": "anchor"},
+            {"role": "assistant", "content": "work"},
+            {"role": "user", "content": "a2", "meta": "anchor"}]
+    pruned = prune_stale_anchors(msgs)
+    anchors = [m for m in pruned if m.get("meta") == "anchor"]
+    assert [a["content"] for a in anchors] == ["a2"]
+    assert len(pruned) == 3

@@ -35,7 +35,7 @@ from harness.core import budget, commands
 from harness.core.context import TIERS, VOICES, build_system_prompt, load_backbone
 from harness.core.loop import Agent
 from harness.core.permissions import ModeSet, load_modes
-from harness.core.session import SessionStore
+from harness.core.session import SessionStore, prune_stale_anchors
 from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
 from harness.providers.ollama_native import OllamaNativeModel
@@ -307,7 +307,7 @@ def main() -> None:
         session_id = store.latest() if args.resume == "latest" else args.resume
         if session_id is None:
             sys.exit("nothing to resume - no sessions yet")
-        messages = store.load(session_id)
+        messages = prune_stale_anchors(store.load(session_id))
         print(f"resumed session {session_id} ({len(messages)} messages)")
     else:
         session_id = store.new()
@@ -391,8 +391,9 @@ def main() -> None:
         agent_prompts={n: (lambda s=s: assemble(s)) for n, s in agent_specs.items()},
     )
     # The todo list is top-level only: children never see its schema, so they
-    # never call it (docs/notes/13-todo-tool.md).
-    todo_fn, todo_schema = make_todo_tool(emit=print)
+    # never call it (docs/notes/13-todo-tool.md). Its snapshot feeds the
+    # attention anchors (2.23).
+    todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=print)
     registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn)
     schemas = basic.SCHEMAS + [spawn_schema, todo_schema]
 
@@ -410,6 +411,9 @@ def main() -> None:
         on_usage=on_usage,
         on_message=persist,
         max_tool_chars=primary_cfg.get("max_tool_chars", 2000),
+        # Attention anchors (2.23): re-anchor after K quiet tool steps.
+        anchor_after=primary_cfg.get("anchor_after", 5),
+        get_plan=todo_snapshot,
     )
 
     window = primary_cfg.get("context_window", 0)

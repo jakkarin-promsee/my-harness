@@ -150,7 +150,9 @@ class OpenAICompatModel:
         from complete() so translation (think mapping) tests skip HTTP."""
         body = {
             "model": self.model,
-            "messages": messages,
+            # meta is OUR protocol (2.23 anchors) - strict endpoints 400 on
+            # unknown fields, so it never crosses the wire.
+            "messages": [{k: v for k, v in m.items() if k != "meta"} for m in messages],
             "tools": tools,
             # No temperature override: qwen3 + temperature 0 (greedy
             # decoding) spirals into infinite repetition while

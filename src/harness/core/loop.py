@@ -53,6 +53,8 @@ class Agent:
         on_message: Callable[[dict], None] | None = None,
         max_steps: int = 20,
         max_tool_chars: int = 2000,
+        anchor_after: int = 8,
+        get_plan: Callable[[], str] | None = None,
     ):
         self.model = model                      # anything with .complete(messages, schemas)
         self.registry = registry                # tool name -> python function
@@ -69,11 +71,19 @@ class Agent:
         self.on_message = on_message            # persistence hook (sessions write here)
         self.max_steps = max_steps              # runaway-LOOP guard
         self.max_tool_chars = max_tool_chars    # crude output diet; Stage 3.1 replaces
+        # Attention anchors (2.23, note 30): after this many consecutive tool
+        # steps with no todo_write, re-anchor with the original request + the
+        # plan. 0 disables. get_plan renders the todo state (may be None).
+        # Default 8, not 5: healthy deep exploration IS 5+ quiet steps -
+        # firing there caused apology-spirals (measured on M3, note 30).
+        self.anchor_after = anchor_after
+        self.get_plan = get_plan
 
     def run_turn(self, messages: list) -> None:
         """One user request -> the model chains tool calls -> final text."""
         nudged = False          # one empty-reply nudge per turn
         length_nudged = False   # one cut-off nudge per turn
+        quiet_steps = 0         # tool steps since the plan was last touched (2.23)
         for _ in range(self.max_steps):
             reply = self.model.complete(messages, self.schemas)
             msg = reply["message"]
@@ -143,7 +153,45 @@ class Agent:
                     {"role": "tool", "tool_call_id": call["id"], "content": result},
                 )
 
+            # Attention anchor (2.23, note 30): touching the plan resets the
+            # clock; K quiet steps re-anchor. One live anchor at a time.
+            if any(c["function"]["name"] == "todo_write" for c in tool_calls):
+                quiet_steps = 0
+            else:
+                quiet_steps += 1
+            if self.anchor_after and quiet_steps >= self.anchor_after:
+                self._anchor(messages, quiet_steps)
+                quiet_steps = 0
+
         self.emit(f"  [!] hit MAX_STEPS={self.max_steps} - stopping this turn (runaway guard)")
+
+    def _anchor(self, messages: list, quiet: int) -> None:
+        """Inject the re-anchoring reminder (2.23): an ordinary user message
+        tagged meta='anchor' (protocol, not signal — adapters scrub the tag,
+        /compact drops the message, resume keeps only the last). The old
+        anchor leaves the in-memory list; the JSONL stays append-only."""
+        for i in range(len(messages) - 1, -1, -1):
+            if messages[i].get("meta") == "anchor":
+                del messages[i]
+                break
+        ask = next((m.get("content") or "" for m in messages if m.get("role") == "user"), "")
+        plan = (self.get_plan() or "") if self.get_plan else ""
+        # Wording matters (measured, note 30): an anchor that reads as a
+        # reprimand triggers apologies and from-scratch replanning. This is
+        # ambient state, Claude Code system-reminder style - explicitly not
+        # feedback, explicitly not to be answered.
+        self._append(messages, {
+            "role": "user",
+            "meta": "anchor",
+            "content": (
+                "(Automated context reminder - not user feedback, do not reply to it "
+                "or change course because of it.\n"
+                f'Original request: "{ask[:300]}"\n'
+                + (f"Your current plan:\n{plan}\n" if plan else "")
+                + "Keep working; deliver the request above.)"
+            ),
+        })
+        self.emit(f"  [anchor] re-anchoring after {quiet} quiet tool steps")
 
     def _append(self, messages: list, msg: dict) -> None:
         """Every append flows through here so persistence sees every message

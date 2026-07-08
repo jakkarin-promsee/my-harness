@@ -153,3 +153,10 @@ def test_stream_tool_calls_arrive_whole():
     call = reply["message"]["tool_calls"][0]
     assert call["function"]["name"] == "grep"
     assert json.loads(call["function"]["arguments"]) == {"pattern": "x"}
+
+
+def test_meta_never_crosses_the_native_wire():
+    # 2.23 (note 30): the anchor tag stays ours on this dialect too.
+    from harness.providers.ollama_native import translate_out
+    out = translate_out([{"role": "user", "content": "hi", "meta": "anchor"}])
+    assert out == [{"role": "user", "content": "hi"}]

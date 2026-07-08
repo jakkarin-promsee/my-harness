@@ -11,6 +11,16 @@ import time
 from pathlib import Path
 
 
+def prune_stale_anchors(messages: list) -> list:
+    """Keep only the LAST attention anchor (2.23, note 30). The JSONL is
+    append-only, so a resumed transcript replays every anchor that ever
+    existed; only the newest was live when the session ended - staleness is
+    derivable, no mutation ever touched the disk."""
+    anchor_idx = [i for i, m in enumerate(messages) if m.get("meta") == "anchor"]
+    stale = set(anchor_idx[:-1])
+    return [m for i, m in enumerate(messages) if i not in stale]
+
+
 class SessionStore:
     def __init__(self, directory: str = "sessions"):
         self.dir = Path(directory)

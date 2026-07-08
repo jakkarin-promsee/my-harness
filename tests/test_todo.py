@@ -6,7 +6,7 @@ from harness.tools.todo import TODO_SCHEMA, make_todo_tool
 
 def quiet():
     lines = []
-    fn, schema = make_todo_tool(emit=lines.append)
+    fn, schema, snapshot = make_todo_tool(emit=lines.append)
     return fn, lines
 
 
@@ -53,9 +53,17 @@ def test_the_human_sees_the_same_checklist():
 
 
 def test_schema_and_registry_name_agree():
-    fn, schema = make_todo_tool(emit=lambda _: None)
+    fn, schema, snapshot = make_todo_tool(emit=lambda _: None)
     assert schema is TODO_SCHEMA
     assert schema["function"]["name"] == "todo_write"
     statuses = schema["function"]["parameters"]["properties"]["todos"]["items"][
         "properties"]["status"]["enum"]
     assert statuses == ["pending", "in_progress", "completed"]
+
+
+def test_snapshot_renders_the_live_plan():
+    # 2.23 (note 30): the anchor's view of the plan comes from this closure.
+    fn, _, snapshot = make_todo_tool(emit=lambda _: None)
+    assert snapshot() == ""
+    fn([{"content": "step one", "status": "in_progress"}])
+    assert snapshot() == "[>] step one"
