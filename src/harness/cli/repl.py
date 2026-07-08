@@ -31,7 +31,7 @@ import requests
 from dotenv import load_dotenv
 
 from harness.core import agents as roles
-from harness.core import budget, commands
+from harness.core import budget, commands, reflect
 from harness.core.context import TIERS, VOICES, build_system_prompt, load_backbone
 from harness.core.loop import Agent
 from harness.core.permissions import ModeSet, load_modes
@@ -69,6 +69,31 @@ PROVIDERS = {
         "voice": "normal",
         # Tool-result diet (2.21a): tight on the 8K card.
         "max_tool_chars": 2000,
+    },
+    # The FUN/STUDY lane (2026-07-08): same qwen3:4b family as the workhorse,
+    # but the THINKING sibling. Measured same ~14 tok/s, yet ~7x more tokens
+    # per turn (it reasons before every act) -> slower wall-clock per step and
+    # a real thinking-death risk on the 8K window (note 11). NOT the workhorse
+    # - a rig for watching it reason (dim [thinking] lines stream live). Run:
+    #   uv run harness ollama-think
+    "ollama-think": {
+        "kind": "ollama-native",
+        "url": "http://localhost:11434/api/chat",
+        "key": "ollama",
+        "model": "qwen3:4b",  # pinned: the thinking sibling of the instruct workhorse
+        "context_window": int(os.getenv("OLLAMA_CONTEXT_LENGTH", "4096")),
+        "max_tokens": 4096,   # headroom before thinking-death; 4096 leaves 4096 for prompt on 8K
+        "tier": "micro",      # keep the backbone small - leave window for the reasoning
+        "voice": "normal",
+        "max_tool_chars": 2000,
+        # qwen3 is boolean-class (note 18): "on" -> think:true (NOT the level
+        # strings, which are for gpt-oss-class). On by default - seeing it
+        # reason is the whole point of this lane; /think off still works at runtime.
+        "think": "on",
+        # Turn reflection (note 32): after each tool-using turn, THIS fast
+        # non-thinking model distills the turn and replaces the churn with a
+        # compact recap - rolling compaction so the verbose lane stays lean.
+        "reflect": "qwen3:4b-instruct",
     },
     # Two Gemini lanes since 2.17 (ROADMAP3 §4): "gemini" = flash-lite, the
     # cheap REGRESSION lane (before/after-every-feature runs); "gemini-flash"
@@ -338,6 +363,15 @@ def main() -> None:
     child_model = make_model(provider)
     child_model.think = provider.get("think")
 
+    # The reflection meta-model (note 32): a fast, non-thinking distiller that
+    # summarizes each finished turn. Play-lane only — built solely when the
+    # provider names one, and only on the Ollama wire it shares. Never streams
+    # (its output is folded into context, not watched live).
+    reflect_name = primary_cfg.get("reflect")
+    reflect_model = None
+    if reflect_name and primary_cfg["kind"] == "ollama-native":
+        reflect_model = OllamaNativeModel(primary_cfg["url"], reflect_name, max_tokens=512)
+
     # The token meter: non-negotiable from day 1 — this project exists
     # because of token economics. Watch prompt_tokens climb call after call.
     # (Ollama dialect: it excludes KV-cached tokens, so it can also drop.)
@@ -583,11 +617,33 @@ def main() -> None:
                 continue
             user = expanded  # the rendered template becomes the user message
 
+        turn_start = len(messages)  # note 32: the slice this turn will add
         messages.append({"role": "user", "content": user})
         persist(messages[-1])
+        turn_ok = True
         try:
             agent.run_turn(messages)
         except requests.RequestException as e:
             print(f"  [!] API error: {e}")
+            turn_ok = False
+        # Turn reflection (note 32): once the turn finishes and no tool churn is
+        # dangling, a fast meta-model distills it and REPLACES the churn with a
+        # recap - the user message stays, the tool call/result noise is gone.
+        # Only when tools actually ran (a greeting needs no recap).
+        if (reflect_model and turn_ok
+                and any(m.get("tool_calls") for m in messages[turn_start:])):
+            before = budget.estimate_tokens(messages)
+            try:
+                recap = reflect.summarize_turn(reflect_model, messages[turn_start:])
+            except requests.RequestException as e:
+                print(f"  [!] reflect skipped (API error): {e}")
+            else:
+                del messages[turn_start + 1:]  # keep the user msg, drop the churn
+                note = {"role": "assistant", "meta": "recap",
+                        "content": "(Recap of my previous turn, distilled for my own memory)\n" + recap}
+                messages.append(note)
+                persist(note)
+                after = budget.estimate_tokens(messages)
+                print(f"  [reflect] distilled turn -> recap | context ~{before:,} -> ~{after:,} tok")
         print(budget.budget_line(budget.estimate_tokens(messages), window))
     print(f"\nsession total: {totals['in']:,} in / {totals['out']:,} out tokens")

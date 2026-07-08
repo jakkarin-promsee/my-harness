@@ -9,6 +9,7 @@ The heart of the harness plus the bookkeeping that keeps it alive. Each module's
 | `permissions.py` | Three-state policy (allow / ask / deny) from `harness.toml` + named **modes** (chat / explore / build / auto) switchable at runtime. Fail-closed: deny > ask > allow; `-y` upgrades *ask* only, never deny; an allow on `write_file`/`edit_file` counts inside cwd only. | 10, 16 |
 | `session.py` | One JSONL file per session, one line per message the moment it exists. Resume = replay the lines. | 05 |
 | `budget.py` | Token estimate + the standard `/compact` (summarize-and-replace). Built as the baseline Stage 3.1's surgical ops must measurably beat. | ROADMAP 3.1 |
+| `reflect.py` | **Turn reflection** (play-lane prototype): a fast non-thinking meta-model distills each finished turn; the REPL replaces the tool churn with the recap. Rolling per-turn compaction; `render_turn` is pure. Wired only for `ollama-think`. | 32 |
 | `commands.py` | Slash commands = markdown files: `/name args` → `commands/name.md` with `{{args}}` substituted. | 09 |
 | `agents.py` | Roles = markdown files: `agents/*.md` frontmatter (description/model/mode/think/backbone) + body = the role section appended to the backbone (2.18a). `build` is the code-level built-in. Also home of the shared `split_frontmatter`. | 17, 23 |
 | `skills.py` | The MODEL's procedure library: `skills/*/SKILL.md` at the cwd → one name+description line each in the system prompt; the model reads a body on activation (progressive disclosure = `read_file`). | 20 |
