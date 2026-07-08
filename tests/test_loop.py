@@ -236,3 +236,34 @@ def test_todo_write_resets_the_anchor_clock():
                 {"role": "user", "content": "task"}]
     agent.run_turn(messages)
     assert not [m for m in messages if m.get("meta") == "anchor"]
+
+
+def test_keyboard_interrupt_escapes_from_the_model_call():
+    """Ctrl+C must reach the REPL's steer arm (2.25, note 34): the loop's
+    error-to-text net catches Exception, and KeyboardInterrupt is a
+    BaseException - never swallowed. From the model call there's no dangle:
+    the reply was never appended."""
+    class InterruptingModel:
+        def complete(self, messages, schemas):
+            raise KeyboardInterrupt
+
+    messages = [{"role": "user", "content": "go"}]
+    with pytest.raises(KeyboardInterrupt):
+        make_agent(InterruptingModel()).run_turn(messages)
+    assert messages == [{"role": "user", "content": "go"}]
+
+
+def test_keyboard_interrupt_from_a_tool_leaves_the_repairable_dangle():
+    """From inside a tool the assistant batch IS already appended - exactly
+    the corpse repair_dangling_calls exists to close."""
+    from harness.core.session import repair_dangling_calls
+
+    def boom():
+        raise KeyboardInterrupt
+
+    model = FakeModel([tool_reply(("c1", "boom", "{}"))])
+    messages = [{"role": "user", "content": "go"}]
+    with pytest.raises(KeyboardInterrupt):
+        make_agent(model, {"boom": boom}).run_turn(messages)
+    assert messages[-1].get("tool_calls")  # the dangle
+    assert [m["tool_call_id"] for m in repair_dangling_calls(messages)] == ["c1"]

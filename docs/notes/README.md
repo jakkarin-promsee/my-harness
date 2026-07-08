@@ -40,3 +40,4 @@ history — if a note disagrees with the code, the code is the territory.
 | [31-stage-2c-close](31-stage-2c-close.md) | **Stage 2C close report**: exit gate (flash 14/14 + museum 3/3, hold-out 3/3 first-run), the before/after table, honest remainders |
 | [32-turn-reflection](32-turn-reflection.md) | 2.24: a fast meta-model distills each finished turn — rolling per-turn compaction on the ollama-think lane |
 | [33-mcp-client](33-mcp-client.md) | 2.16 (un-deferred): stdio MCP client — `[mcp.servers.*]` → `mcp__server__tool` in the registry, ask-by-default; duckduckgo search is the flagship; the child-process TLS lesson (`ca_bundle.py`) |
+| [34-turn-control](34-turn-control.md) | 2.25: Ctrl+C = steer, not die — the turn stops, the session survives; `repair_dangling_calls` synthesizes results for unanswered tool_calls on interrupt AND on `--resume` (the 400-poison corpse) |

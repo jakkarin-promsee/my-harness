@@ -72,6 +72,44 @@ def test_resume_reproduces_the_conversation(tmp_path):
     assert store.load(sid) == messages  # disk == memory, always
 
 
+def _batch(*ids):
+    return {"role": "assistant", "content": None, "tool_calls": [
+        {"id": i, "type": "function", "function": {"name": "t", "arguments": "{}"}}
+        for i in ids]}
+
+
+def test_repair_synthesizes_exactly_the_missing_results():
+    # 2.25 (note 34): a turn killed mid-batch leaves unanswered tool_calls -
+    # the shape strict wires 400 on. Repair fills the gaps, in batch order.
+    from harness.core.session import repair_dangling_calls
+    msgs = [{"role": "user", "content": "go"},
+            _batch("c1", "c2", "c3"),
+            {"role": "tool", "tool_call_id": "c2", "content": "done"}]
+    new = repair_dangling_calls(msgs)
+    assert [m["tool_call_id"] for m in new] == ["c1", "c3"]
+    assert all(m["role"] == "tool" and "interrupted" in m["content"] for m in new)
+    assert msgs[-2:] == new  # appended in place
+    assert repair_dangling_calls(msgs) == []  # idempotent
+
+
+def test_repair_leaves_healthy_histories_alone():
+    from harness.core.session import repair_dangling_calls
+    answered = [_batch("c1"), {"role": "tool", "tool_call_id": "c1", "content": "ok"}]
+    assert repair_dangling_calls(answered) == []
+    chat = [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "yo"}]
+    assert repair_dangling_calls(chat) == []
+    assert len(answered) == 2 and len(chat) == 2  # untouched
+
+
+def test_repair_refuses_a_foreign_tail():
+    # A non-tool message after an unanswered batch is not an interrupt shape;
+    # appending results past it would be invalid ordering. Touch nothing.
+    from harness.core.session import repair_dangling_calls
+    msgs = [_batch("c1"), {"role": "user", "content": "steer"}]
+    assert repair_dangling_calls(msgs) == []
+    assert len(msgs) == 2
+
+
 def test_prune_stale_anchors_keeps_only_the_last():
     # 2.23 (note 30): append-only JSONL replays every anchor that ever
     # existed; only the newest was live.

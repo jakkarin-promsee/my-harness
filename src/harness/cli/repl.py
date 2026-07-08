@@ -35,7 +35,7 @@ from harness.core import budget, commands, reflect
 from harness.core.context import TIERS, VOICES, build_system_prompt, load_backbone
 from harness.core.loop import Agent
 from harness.core.permissions import ModeSet, load_modes
-from harness.core.session import SessionStore, prune_stale_anchors
+from harness.core.session import SessionStore, prune_stale_anchors, repair_dangling_calls
 from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
 from harness.providers.ollama_native import OllamaNativeModel
@@ -333,6 +333,14 @@ def main() -> None:
         if session_id is None:
             sys.exit("nothing to resume - no sessions yet")
         messages = prune_stale_anchors(store.load(session_id))
+        # A transcript killed mid-turn ends with unanswered tool_calls -
+        # poison for strict wires (2.25, note 34). Repair is an ADDITION, so
+        # persisting it keeps the JSONL append-only and disk == memory.
+        repaired = repair_dangling_calls(messages)
+        for m in repaired:
+            store.append(session_id, m)
+        if repaired:
+            print(f"  [repair] closed {len(repaired)} tool call(s) left dangling by an interrupted turn")
         print(f"resumed session {session_id} ({len(messages)} messages)")
     else:
         session_id = store.new()
@@ -617,6 +625,11 @@ def main() -> None:
             except requests.RequestException as e:
                 print(f"  [!] API error: {e}")
                 continue
+            except KeyboardInterrupt:
+                # compact() only returns a new list on success - cancelling
+                # here loses nothing (2.25's belt on the one other long call).
+                print("\n  [interrupted] compact cancelled - context unchanged")
+                continue
             if usage:
                 on_usage(usage)
             # Old transcript stays intact on disk; compacted context lives on
@@ -642,6 +655,17 @@ def main() -> None:
             agent.run_turn(messages)
         except requests.RequestException as e:
             print(f"  [!] API error: {e}")
+            turn_ok = False
+        except KeyboardInterrupt:
+            # Ctrl+C mid-turn = steer, not die (2.25, note 34): stop the
+            # turn, keep the session, let the next message redirect. Close
+            # any half-printed stream line first so the notice starts clean
+            # (and the printer's mode state doesn't go stale).
+            if getattr(agent.model, "on_delta", None):
+                agent.model.on_delta("end", "")
+            for m in repair_dangling_calls(messages):
+                persist(m)
+            print("\n  [interrupted] turn stopped - the session is intact; tell me how to proceed")
             turn_ok = False
         # Turn reflection (note 32): once the turn finishes and no tool churn is
         # dangling, a fast meta-model distills it and REPLACES the churn with a

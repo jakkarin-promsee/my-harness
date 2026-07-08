@@ -11,6 +11,51 @@ import time
 from pathlib import Path
 
 
+# What the model reads next turn in place of a result that never arrived —
+# honest about the uncertainty: on Windows a Ctrl+C reaches the console
+# group, so a run_shell child may have half-run before dying.
+INTERRUPT_RESULT = ("(interrupted by user - this tool call was cancelled; "
+                    "it may not have run. Do not assume it did.)")
+
+
+def repair_dangling_calls(messages: list) -> list:
+    """Synthesize tool results for a turn that died mid-batch (2.25, note 34).
+
+    An assistant message carrying tool_calls MUST be answered one role:"tool"
+    message per id - strict OpenAI-style wires 400 the next POST otherwise
+    (the same poisoning loop.py guards on its length-cut path). Two consumers:
+    the REPL's Ctrl+C arm (repair on the spot) and --resume (a killed
+    transcript ends exactly at the dangle). Appends in place and returns the
+    synthesized messages so callers can persist them - the JSONL stays
+    append-only, the repair is recorded rather than implied. Idempotent.
+
+    Conservative by design: only the TAIL batch can dangle from our two
+    consumers, so anything other than tool answers after the last batch means
+    the history is not an interrupt shape - return [] and touch nothing
+    (repairing a foreign tail would insert results after a user message:
+    invalid ordering, and not our corpse).
+    """
+    last = None
+    for i in range(len(messages) - 1, -1, -1):
+        if messages[i].get("role") == "assistant" and messages[i].get("tool_calls"):
+            last = i
+            break
+    if last is None:
+        return []
+    answered = set()
+    for m in messages[last + 1:]:
+        if m.get("role") != "tool":
+            return []
+        answered.add(m.get("tool_call_id"))
+    synthesized = [
+        {"role": "tool", "tool_call_id": call["id"], "content": INTERRUPT_RESULT}
+        for call in messages[last]["tool_calls"]
+        if call["id"] not in answered
+    ]
+    messages.extend(synthesized)
+    return synthesized
+
+
 def prune_stale_anchors(messages: list) -> list:
     """Keep only the LAST attention anchor (2.23, note 30). The JSONL is
     append-only, so a resumed transcript replays every anchor that ever
