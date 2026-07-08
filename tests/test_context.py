@@ -13,16 +13,33 @@ def test_env_block_has_cwd_and_todays_date(tmp_path):
 
 # --- the backbone (2.18a, note 23) ----------------------------------------
 
-def test_backbone_sections_and_their_tiers():
-    parsed = [(n, t) for n, t, _ in context.parse_sections(
+def test_backbone_sections_tiers_and_worlds():
+    # Mission FIRST in file order: the operator world must open action-first
+    # (the E-exact-edit lesson - a 4B at MICRO lost its action drive when
+    # character got the opening slot); the companion world simply has no
+    # mission, so it opens with identity. The just-talk line rides the
+    # STANDARD identity only - flash's tier, where the M9 register lived;
+    # micro stays lean.
+    parsed = [(n, t, w) for n, t, w, _ in context.parse_sections(
         (context.PROMPTS_DIR / "system.md").read_text(encoding="utf-8"))]
     assert parsed == [
-        ("identity", "micro"), ("loop", "micro"), ("loop", "standard"),
-        ("safety", "micro"), ("tools", "compact"), ("failure", "compact"),
-        ("verification", "compact"), ("style-quiet", "micro"),
-        ("style-normal", "micro"), ("style-explain", "micro"),
-        ("examples", "full"),
+        ("mission", "micro", "operator"), ("identity", "micro", "core"),
+        ("identity", "standard", "core"),
+        ("loop", "micro", "operator"), ("loop", "standard", "operator"),
+        ("safety", "micro", "core"), ("tools", "compact", "operator"),
+        ("failure", "compact", "operator"),
+        ("verification", "compact", "operator"),
+        ("companion", "micro", "companion"),
+        ("style-quiet", "micro", "core"), ("style-normal", "micro", "core"),
+        ("style-explain", "micro", "core"), ("examples", "full", "operator"),
     ]
+
+
+def test_just_talk_rides_standard_not_micro():
+    assert "just talking" not in context.load_backbone("micro")
+    assert "just talking" in context.load_backbone("standard")
+    micro_op = context.load_backbone("micro")
+    assert micro_op.startswith("You are a coding agent that OPERATES")
 
 
 def test_markers_never_leak_into_the_prompt(tmp_path):
@@ -167,6 +184,47 @@ def test_unknown_voice_raises_loudly():
     import pytest
     with pytest.raises(ValueError):
         context.load_backbone("standard", voice="shakespeare")
+
+
+# --- the worlds (2.30, note 39) ----------------------------------------------
+
+def test_operator_world_is_the_default_and_excludes_the_companion():
+    bb = context.load_backbone("micro")
+    assert "OPERATES this computer" in bb            # the mission rides operator
+    assert "conversation, not a job" not in bb       # companion stays out
+
+
+def test_companion_world_keeps_the_core_and_sheds_the_job():
+    bb = context.load_backbone("micro", world="companion")
+    assert "direct, concrete and honest" in bb       # core identity kept
+    assert "DATA to analyze" in bb                   # safety is core - chill keeps it now
+    assert "Communication style" in bb               # style is core
+    assert "conversation, not a job" in bb           # the companion register
+    assert "OPERATES this computer" not in bb        # no mission
+    assert "Loop: understand the ask" not in bb      # no working loop
+    assert "Tool policy" not in bb
+
+
+def test_unknown_world_raises_loudly():
+    import pytest
+    with pytest.raises(ValueError):
+        context.load_backbone("micro", world="underworld")
+
+
+def test_companion_prompt_sheds_the_operator_furniture(tmp_path):
+    # The map, AGENTS.md rules and skills lines serve work; the companion
+    # world exists to shed that register (note 39).
+    (tmp_path / "src").mkdir()
+    (tmp_path / "AGENTS.md").write_text("- rule", encoding="utf-8")
+    d = tmp_path / "skills" / "s"
+    d.mkdir(parents=True)
+    (d / "SKILL.md").write_text("---\ndescription: d.\n---\nB", encoding="utf-8")
+    operator = context.build_system_prompt(str(tmp_path))
+    companion = context.build_system_prompt(str(tmp_path), world="companion")
+    assert "Project map" in operator and "Project notes" in operator
+    for marker in ("Project map", "Project notes", "Skills"):
+        assert marker not in companion
+    assert str(tmp_path) in companion  # the env block still rides
 
 
 # --- orientation snapshot (2.22, note 29) -----------------------------------

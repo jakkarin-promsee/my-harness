@@ -86,3 +86,14 @@ def test_voice_frontmatter_rides_the_spec():
     from harness.core.agents import parse_agent_file
     assert parse_agent_file("x", "---\nvoice: explain\n---\nbody").voice == "explain"
     assert parse_agent_file("y", "---\ndescription: d\n---\nbody").voice is None
+
+
+def test_world_frontmatter_rides_the_spec():
+    # 2.30 (note 39): a role may pick its world; operator is the default
+    # (None -> the assembly's default), and the shipped chill role is the
+    # companion now instead of a backbone opt-out.
+    assert parse_agent_file("x", "---\nworld: companion\n---\nbody").world == "companion"
+    assert parse_agent_file("y", "---\ndescription: d\n---\nbody").world is None
+    chill = discover()["chill"]
+    assert chill.world == "companion"
+    assert chill.backbone is True  # keeps core safety/honesty/style again

@@ -56,6 +56,7 @@ uv run harness gemini-flash   # the quality lane
 | `/think` · `/think VALUE` | show / set reasoning: `off` `on` `low` `medium` `high` |
 | `/prompt` · `/prompt TIER` | show the prompt-ladder tiers with measured token costs / switch (`micro` `compact` `standard` `full`) — local defaults to `micro`, Gemini to `standard` |
 | `/voice` · `/voice NAME` | how much the agent talks: `quiet` (scripted runs) · `normal` (local default) · `explain` (Gemini default — narrates the plan, teaches as it goes, closes with a verified summary) |
+| `/chat` · `/work` | the two worlds (note 39): one-word switch to the companion (warm conversation, no tools) or back to the operator — aliases for `/agent chill` / `/agent build` |
 | `/mcp` | list connected MCP servers and the tools they mounted |
 | `/tokens` | context size vs. the model's window |
 | `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file). Also fires **automatically** at a per-provider window threshold (85 % default, 60 % on the 8K local lanes — note 36); `auto_compact: 0` in a provider entry disables |
@@ -89,7 +90,7 @@ specialization, layered onto the shared backbone prompt. Ships with:
 |---|---|---|
 | `build` | build | the default working agent (*is* the backbone — `src/harness/prompts/system.md`) |
 | `plan` | explore | "figure out how, don't do it" — every plan ends by offering `/agent build` to execute |
-| `chill` | chat | thinking out loud with no tools in reach |
+| `chill` | chat | the companion world (2.30): warm conversation, no tools, same core character — `/chat` jumps here |
 | `reviewer` | explore | adversarial read-only review — reports problems, fixes nothing |
 
 The flow that earns its keep: `/agent plan` → discuss until the plan is right →
@@ -297,12 +298,16 @@ code `src/harness/core/permissions.py`.
 
 ### Change the system prompt
 
-The backbone is `src/harness/prompts/system.md` — six tagged sections (identity,
-loop, tools, failure, verification, style) that the ladder trims per tier; roles
-extend it, `backbone: false` opts out. Measure any change: `/prompt` shows the
-per-tier token cost, and prompt wording is empirically fragile — the accusatory
-anchor cost a museum task until reworded ambient (note 30). Detail:
-[notes 23](notes/23-backbone.md) + [24](notes/24-prompt-ladder.md).
+The backbone is `src/harness/prompts/system.md` — tagged sections trimmed by
+tier (the ladder) and selected by **world** (2.30): `core` sections (identity,
+safety, style) ride every role; `operator` sections (mission, loop, tools,
+failure, verification, examples) are the working world; the `companion`
+section is the conversational one. Roles extend it, `world:` picks the
+wrapper, `backbone: false` opts out entirely. Measure any change: `/prompt`
+shows the per-tier token cost, and prompt wording is empirically fragile —
+the accusatory anchor cost a museum task until reworded ambient (note 30).
+Detail: [notes 23](notes/23-backbone.md) + [24](notes/24-prompt-ladder.md) +
+[39](notes/39-two-worlds.md).
 
 ### Add an acceptance task
 

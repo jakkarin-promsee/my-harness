@@ -70,7 +70,8 @@ def build_snapshot(cwd: str, tier: str = "standard") -> str:
     return ("Project map (top-level dirs and their children; dirs end with /):\n"
             + "\n".join(lines))
 
-SECTION_MARK = re.compile(r"<!--\s*section:\s*([\w-]+)\s*(?:tier:\s*(\w+)\s*)?-->")
+SECTION_MARK = re.compile(
+    r"<!--\s*section:\s*([\w-]+)\s*(?:tier:\s*(\w+)\s*)?(?:world:\s*(\w+)\s*)?-->")
 
 # The ladder (note 24): a section is included when its tag <= the active tier.
 TIERS = ("micro", "compact", "standard", "full")
@@ -80,39 +81,53 @@ TIERS = ("micro", "compact", "standard", "full")
 # the wire (providers), not in the prompt. Two axes, orthogonal by design.
 VOICES = ("quiet", "normal", "explain")
 
+# The worlds (2.30, note 39) - the third axis: `core` sections ride every
+# world (identity-of-character, safety, style); a world tag picks the job
+# wrapper. operator = works the computer; companion = conversation. One
+# character, two jobs, one file.
+WORLDS = ("operator", "companion")
 
-def parse_sections(text: str) -> list[tuple[str, str, str]]:
-    """Backbone text -> [(name, tier, body), ...]. Text before the first
-    marker (if any) is ignored - every real section is fenced. The tier tag
-    defaults to 'standard' (inert until 2.18b's ladder filters on it)."""
+
+def parse_sections(text: str) -> list[tuple[str, str, str, str]]:
+    """Backbone text -> [(name, tier, world, body), ...]. Text before the
+    first marker (if any) is ignored - every real section is fenced. The
+    tier tag defaults to 'standard'; the world tag defaults to 'core'
+    (rides every world)."""
     marks = list(SECTION_MARK.finditer(text))
     sections = []
     for i, m in enumerate(marks):
         end = marks[i + 1].start() if i + 1 < len(marks) else len(text)
         body = text[m.end():end].strip()
         if body:
-            sections.append((m.group(1), m.group(2) or "standard", body))
+            sections.append((m.group(1), m.group(2) or "standard",
+                             m.group(3) or "core", body))
     return sections
 
 
-def load_backbone(tier: str = "standard", voice: str = "normal") -> str:
-    """The assembled backbone at a tier and voice: sections whose tag <= tier,
+def load_backbone(tier: str = "standard", voice: str = "normal",
+                  world: str = "operator") -> str:
+    """The assembled backbone at a tier, voice and world: sections whose
+    tier tag <= tier AND whose world tag is `core` or the active world,
     markers stripped, one blank line between sections. Same-name sections
     replace — the highest applicable tier wins, at the position of first
     appearance (so `loop` shows its one-liner at micro and the full protocol
     at standard+, from the same file). `style-<x>` sections collapse into the
-    one `style` slot matching the active voice (note 25). Unknown tier/voice
-    -> ValueError, loudly: a typo silently degrading the prompt would be a
-    debugging pit."""
+    one `style` slot matching the active voice (note 25). Unknown
+    tier/voice/world -> ValueError, loudly: a typo silently degrading the
+    prompt would be a debugging pit."""
     if tier not in TIERS:
         raise ValueError(f"unknown tier {tier!r} (choose from {', '.join(TIERS)})")
     if voice not in VOICES:
         raise ValueError(f"unknown voice {voice!r} (choose from {', '.join(VOICES)})")
+    if world not in WORLDS:
+        raise ValueError(f"unknown world {world!r} (choose from {', '.join(WORLDS)})")
     active = TIERS.index(tier)
     text = (PROMPTS_DIR / "system.md").read_text(encoding="utf-8")
     order: list[str] = []
     chosen: dict[str, tuple[int, str]] = {}  # name -> (rank, body)
-    for name, tag, body in parse_sections(text):
+    for name, tag, sec_world, body in parse_sections(text):
+        if sec_world not in ("core", world):
+            continue  # another world's job wrapper
         if name.startswith("style-"):
             if name != f"style-{voice}":
                 continue
@@ -153,24 +168,25 @@ def build_env_block(cwd: str) -> str:
 
 def build_system_prompt(cwd: str | None = None, template: str | None = None,
                         backbone: bool = True, tier: str = "standard",
-                        voice: str = "normal") -> str:
-    """Assemble the system prompt (notes 23 + 24 + 25). `template` is the
-    active role's body (note 17); since 2.18a it EXTENDS the backbone instead
-    of replacing it — the backbone is exactly the part no role should lose.
-    `backbone=False` restores replace semantics (the `chill` role: an
-    "operates the computer" identity is nonsense in a mode where tools aren't
-    even sent). `tier` picks the ladder rung (note 24): micro for the 8K
-    card, standard for the Gemini lanes, full for max scaffolding. `voice`
-    picks the style section (note 25): explain is the Gemini default — the
-    anti-terseness the owner asked for.
+                        voice: str = "normal", world: str = "operator") -> str:
+    """Assemble the system prompt (notes 23 + 24 + 25 + 39). `template` is
+    the active role's body (note 17); since 2.18a it EXTENDS the backbone
+    instead of replacing it — the backbone is exactly the part no role
+    should lose. `backbone=False` restores replace semantics (the escape
+    hatch for exotic roles). `tier` picks the ladder rung (note 24): micro
+    for the 8K card, standard for the Gemini lanes, full for max
+    scaffolding. `voice` picks the style section (note 25): explain is the
+    Gemini default — the anti-terseness the owner asked for. `world` picks
+    the job wrapper (2.30, note 39): operator works the computer, companion
+    converses; the core character rides both.
     replace(), not format(): an agent prompt containing {braces} must not
     crash the assembly. A template without the placeholder gets the env
     block appended, so plain prose files work unmodified."""
     cwd = cwd or os.getcwd()
     if template is None:
-        prompt = load_backbone(tier, voice)  # the built-in `build` role IS the backbone
+        prompt = load_backbone(tier, voice, world)  # the built-in `build` role IS the backbone
     elif backbone:
-        prompt = load_backbone(tier, voice) + "\n\n# Active role\n" + template.strip()
+        prompt = load_backbone(tier, voice, world) + "\n\n# Active role\n" + template.strip()
     else:
         prompt = template
     env = build_env_block(cwd)
@@ -180,12 +196,16 @@ def build_system_prompt(cwd: str | None = None, template: str | None = None,
         prompt = prompt.replace("{env_block}", env, 1).replace("{env_block}", "")
     else:
         prompt = prompt.rstrip() + "\n\nEnvironment:\n" + env
-    if backbone:
-        # Orientation (2.22, note 29): operators get the map; a chat-only
-        # role (backbone=False) has nothing to navigate.
-        snap = build_snapshot(cwd, tier)
-        if snap:
-            prompt += "\n\n" + snap
+    # Operator furniture (2.30, note 39): the project map, AGENTS.md rules
+    # and skills lines exist to serve work - in the companion world (or with
+    # the backbone opted out) they'd only re-invite the register the world
+    # exists to shed.
+    if not (backbone and world == "operator"):
+        return prompt
+    # Orientation (2.22, note 29): operators get the map.
+    snap = build_snapshot(cwd, tier)
+    if snap:
+        prompt += "\n\n" + snap
     # Project memory: the file the USER owns. Cross-tool convention: AGENTS.md.
     agents_md = Path(cwd) / "AGENTS.md"
     if agents_md.exists():
@@ -193,8 +213,8 @@ def build_system_prompt(cwd: str | None = None, template: str | None = None,
             "\n\nProject notes (from AGENTS.md in the working directory):\n"
             + agents_md.read_text(encoding="utf-8")
         )
-    # Skills: one name+description line each (note 20). Every role and every
-    # subagent rides this same pipeline, so all of them see the library.
+    # Skills: one name+description line each (note 20). Every operator role
+    # and subagent rides this same pipeline, so all of them see the library.
     block = skills_lib.skills_block(skills_lib.discover(str(Path(cwd) / "skills")))
     if block:
         prompt += "\n\n" + block

@@ -18,14 +18,16 @@ without frontmatter is all prompt.
 from pathlib import Path
 
 # The knobs an agent file may set. `think` is parsed now, applied in 2.12.
-KNOWN_KEYS = {"description", "model", "mode", "think", "backbone", "tier", "voice"}
+KNOWN_KEYS = {"description", "model", "mode", "think", "backbone", "tier",
+              "voice", "world"}
 
 
 class AgentSpec:
     def __init__(self, name: str, prompt: str, description: str = "",
                  model: str | None = None, mode: str | None = None,
                  think: str | None = None, backbone: bool = True,
-                 tier: str | None = None, voice: str | None = None):
+                 tier: str | None = None, voice: str | None = None,
+                 world: str | None = None):
         self.name = name
         self.prompt = prompt          # the system prompt body (env appended at assembly)
         self.description = description
@@ -33,10 +35,14 @@ class AgentSpec:
         self.mode = mode              # default permission profile, or None = leave as-is
         self.think = think            # default reasoning level (2.12), or None
         # Roles EXTEND the backbone by default (note 23); `backbone: false`
-        # opts out - for roles where an operator identity is nonsense (chill).
+        # opts out - the escape hatch for exotic roles.
         self.backbone = backbone
         self.tier = tier              # ladder override (note 24), or None = session default
         self.voice = voice            # style override (note 25), or None = session default
+        # The world (2.30, note 39): operator (default) or companion - which
+        # job wrapper rides the shared core. A typo raises loudly at
+        # assembly (load_backbone validates), never degrades silently.
+        self.world = world
 
 
 def parse_agent_file(name: str, text: str) -> AgentSpec:
@@ -51,6 +57,7 @@ def parse_agent_file(name: str, text: str) -> AgentSpec:
         backbone=meta.get("backbone", "").lower() not in {"false", "no", "off"},
         tier=meta.get("tier"),
         voice=meta.get("voice"),
+        world=meta.get("world"),
     )
 
 

@@ -3,6 +3,29 @@
 > Things an autonomous run could not finish alone, plus decisions that are
 > yours to make. Updated 2026-07-08. Delete items as you resolve them.
 
+## 3. URGENT — `.env` was deleted by the gate's own agent; re-create it (2026-07-08 night)
+
+During the 2.30 local core gate (auto-approved, running in the repo root),
+the local agent executed a destructive shell command mid-run: **every file
+in the project root was deleted** — all tracked ones restored from git
+within minutes, but **`.env` (your `GEMINI_API_KEY` + `OLLAMA_MODEL`) and
+the run logs are gone** (`del`/cmd.exe bypasses the recycle bin; uv.lock
+regenerated itself). The key itself is NOT revoked — copy it again from
+https://aistudio.google.com/apikey into a new `.env` (template:
+`.env.example`; remember `OLLAMA_MODEL=qwen3:4b-instruct`). Until then the
+Gemini lanes fail with an auth error; local runs fine.
+
+**The decision that's yours:** the acceptance runner now ships a tripwire
+(wildcard deletes / `git clean` / `format` blocked even under auto-approve
+— `acceptance/run.py`), but that's a blocklist, not a guarantee. The real
+fixes are (a) run the gate in a sandboxed copy of the repo, (b)
+argument-level shell policy in `harness.toml` (deny-patterns for
+`run_shell`), or (c) accept the tripwire as enough for a single-user
+learning rig. ROADMAP2 §6 consciously skipped the OS sandbox — this
+incident is the first real evidence for revisiting. Related: ROADMAP4
+Tier 3 has no sandbox item; if you want (a) or (b), it becomes a numbered
+cycle.
+
 ## 2. Tasks K and I are fragile on flash-lite — the lite model coin-flips role behavior (2026-07-08)
 
 Found while gating 2.18a/2.19: on `gemini-2.5-flash-lite`, `K-skill-trigger`
@@ -24,6 +47,14 @@ since 2.17).
 *(2026-07-08 evening re-measurement, during the 2.16 MCP gate: unchanged —
 K recovered 3/3 on lite, I sat at 1/3 on lite and 3/3 on flash. MCP can't
 touch either mechanically: only mcp-tagged tasks mount the extra schemas.)*
+
+*(2026-07-08 night, 2.30 gate: same family, new member — **D-grep went
+intermittent on local** (0/3 then 1/1): Tier 1's meter code added `totals`
+bait to repl.py, so a bare-`total` grep drowns where `def total` wins in
+one hit. Environment drift decaying the task's discrimination, not harness
+breakage — the fix, if you want one, is making D's expected function name
+unique again (owner call, since renaming the fixture function touches the
+frozen Stage-1 artifact).)*
 
 ## 0. Ollama tray app needs a reboot (2026-07-07, from the 2.15 lab; still true 2026-07-08)
 

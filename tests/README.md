@@ -28,7 +28,8 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 | `test_session.py` | JSONL append / load / resume |
 | `test_context.py` | system-prompt assembly |
 | `test_budget.py` | token estimate + `/compact` |
-| `test_museum.py` | the 2.17 museum verifiers — each must catch the live failure it was built from (the frozen guidebook exhibit must FAIL) |
+| `test_museum.py` | the 2.17 + 2.29 museum verifiers — each must catch the live failure it was built from (frozen exhibits must FAIL, frozen good behavior must PASS) |
+| `test_tripwire.py` | the acceptance runner's destructive-shell tripwire (problem.md #3): wildcard deletes / `git clean` / `format` blocked even under auto-approve |
 | `test_mcp.py` | the MCP client (2.16) against `fake_mcp_server.py` — a real stdio subprocess speaking real JSON-RPC (still zero network/tokens): handshake, pagination, framing, isError/timeout → ERROR text, dead-command degradation, namespacing, config |
 
 **Adding a test:** mirror the module name (`test_<module>.py`), script a `FakeModel` for whatever loop path you need, and assert on what happens to `messages`. No network, ever. The live end-to-end checks live in `acceptance/`, not here.

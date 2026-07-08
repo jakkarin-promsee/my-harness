@@ -355,9 +355,11 @@ def main() -> None:
         # backbone unless its frontmatter says `backbone: false` (note 23).
         # `tier` is read LIVE from the enclosing scope, so /prompt switches
         # and spawn-time children (note 24) both see the current rung.
+        # `world` (2.30, note 39) comes from the role: operator by default,
+        # companion for conversation roles like chill.
         return build_system_prompt(template=spec.prompt or None,
                                    backbone=spec.backbone, tier=tier,
-                                   voice=voice)
+                                   voice=voice, world=spec.world or "operator")
 
     store = SessionStore()
     if args.sessions:
@@ -588,9 +590,15 @@ def main() -> None:
             continue
 
         # ---- slash commands: builtins first, then template commands ----
+        # The world switches (2.30, note 39): one word each, pure aliases -
+        # the /agent lifecycle (new session file, mode, prompt) does the rest.
+        if user == "/chat":
+            user = "/agent chill"
+        elif user == "/work":
+            user = "/agent build"
         if user == "/help":
             templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
-            print("  builtins: /tokens /compact /mode /agent /think /prompt /voice /mcp /help | templates (commands/*.md): " + templates)
+            print("  builtins: /chat /work /tokens /compact /mode /agent /think /prompt /voice /mcp /help | templates (commands/*.md): " + templates)
             continue
         if user == "/mcp":
             if not mcp_servers:

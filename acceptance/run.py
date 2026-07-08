@@ -23,6 +23,7 @@ the full stack against a live model — both must be green to exit a stage.
 
 import argparse
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -417,6 +418,30 @@ def parse_args() -> argparse.Namespace:
     return p.parse_args()
 
 
+# The 2026-07-08 incident (problem.md #3): during a local core run the
+# auto-approved agent executed a destructive shell command in the repo root
+# - every root file INCLUDING .env deleted mid-gate (tracked ones restored
+# from git; the key file was not restorable). The runner's gate now trips on
+# wildcard deletes, tree-cleaners and formatters even under auto-approve.
+# A blocklist is a tripwire, not a guarantee - the real fix is the owner's
+# call (sandboxed gate cwd or argument-level shell policy).
+DESTRUCTIVE = re.compile(
+    r"\b(?:del|erase|rm|rmdir|rd)\b[^&|;]*\*"  # wildcard delete
+    r"|git\s+clean"                            # tree cleaner
+    r"|\bformat\b",                            # drive formatter
+    re.IGNORECASE)
+
+
+def guarded(gate):
+    def approve(name: str, arguments: dict) -> bool:
+        command = str(arguments.get("command", ""))
+        if name == "run_shell" and DESTRUCTIVE.search(command):
+            print(f"  [tripwire] destructive shell blocked: {command!r}")
+            return False
+        return gate(name, arguments)
+    return approve
+
+
 def run_once(task: dict, model, modes, specs, on_usage,
              tier: str = "standard", voice: str = "normal",
              max_tool_chars: int = 2000, mcp_tools=None) -> tuple[bool, str]:
@@ -426,9 +451,10 @@ def run_once(task: dict, model, modes, specs, on_usage,
     if task.get("setup"):
         task["setup"]()
     # Per-task mode (default build); -y semantics via the gate's
-    # auto_approve - deny still denies, in every mode.
+    # auto_approve - deny still denies, in every mode. Wrapped in the
+    # destructive-shell tripwire since the problem.md #3 incident.
     modeset = ModeSet(modes, active=task.get("mode", "build"))
-    gate = make_gate(True, modeset)
+    gate = guarded(make_gate(True, modeset))
     # Per-task role (2.11): a named agent's body rides the same pipeline;
     # since 2.18a it extends the backbone unless the role opts out (note 23),
     # at the provider's ladder tier (note 24) - the gate proves the tier
@@ -439,7 +465,8 @@ def run_once(task: dict, model, modes, specs, on_usage,
             template=spec.prompt if spec else None,
             backbone=spec.backbone if spec else True,
             tier=(spec.tier or tier) if spec else tier,
-            voice=(spec.voice or voice) if spec else voice)},
+            voice=(spec.voice or voice) if spec else voice,
+            world=(spec.world or "operator") if spec else "operator")},
         {"role": "user", "content": task["prompt"]},
     ]
     spawn_fn, spawn_schema = make_spawn_tool(
