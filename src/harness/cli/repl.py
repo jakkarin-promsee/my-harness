@@ -40,7 +40,7 @@ from harness.core.subagent import make_spawn_tool
 from harness.providers.anthropic import AnthropicModel
 from harness.providers.ollama_native import OllamaNativeModel
 from harness.providers.openai_compat import OpenAICompatModel
-from harness.tools import basic
+from harness.tools import basic, mcp
 from harness.tools.todo import make_todo_tool
 
 load_dotenv()
@@ -407,13 +407,23 @@ def main() -> None:
     modeset = ModeSet(modes, active=mode_name)
     gate = make_gate(auto_approve, modeset)
 
+    # MCP servers (2.16, note 33): external tool processes from harness.toml
+    # mount into the same registry as mcp__<server>__<tool>. No permission
+    # code needed: the names fall into each mode's `default` bucket — ask in
+    # build/auto, deny in explore; chat sends no tools at all.
+    mcp_registry, mcp_schemas, mcp_servers = mcp.connect(mcp.load_config(), emit=print)
+    base_registry = dict(basic.REGISTRY, **mcp_registry)
+    base_schemas = basic.SCHEMAS + mcp_schemas
+
     # The spawn tool closes over the LIVE messages list (rebound on /compact),
     # hence the lambda instead of the list itself.
     spawn_fn, spawn_schema = make_spawn_tool(
         model=child_model,
-        registry=basic.REGISTRY,
-        schemas=basic.SCHEMAS,
-        needs_permission=set(basic.REGISTRY),  # child: gate decides via policy
+        # Children get the MCP tools too — search is exactly what a research
+        # child needs; todo_write stays top-level-only (note 13).
+        registry=base_registry,
+        schemas=base_schemas,
+        needs_permission=set(base_registry),  # child: gate decides via policy
         approve=gate,
         emit=print,
         get_parent_messages=lambda: messages,
@@ -428,8 +438,8 @@ def main() -> None:
     # never call it (docs/notes/13-todo-tool.md). Its snapshot feeds the
     # attention anchors (2.23).
     todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=print)
-    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn)
-    schemas = basic.SCHEMAS + [spawn_schema, todo_schema]
+    registry = dict(base_registry, spawn_subagent=spawn_fn, todo_write=todo_fn)
+    schemas = base_schemas + [spawn_schema, todo_schema]
 
     agent = Agent(
         model=model,
@@ -479,7 +489,14 @@ def main() -> None:
         # ---- slash commands: builtins first, then template commands ----
         if user == "/help":
             templates = ", ".join(f"/{n}" for n in commands.discover()) or "(none)"
-            print("  builtins: /tokens /compact /mode /agent /think /prompt /voice /help | templates (commands/*.md): " + templates)
+            print("  builtins: /tokens /compact /mode /agent /think /prompt /voice /mcp /help | templates (commands/*.md): " + templates)
+            continue
+        if user == "/mcp":
+            if not mcp_servers:
+                print("  no MCP servers connected (configure [mcp.servers.<name>] in harness.toml)")
+                continue
+            for s in mcp_servers:
+                print(f"  {s.name}: {len(s.tool_names)} tools - {', '.join(s.tool_names)}")
             continue
         if user == "/prompt" or user.startswith("/prompt "):
             value = user.removeprefix("/prompt").strip()
@@ -646,4 +663,6 @@ def main() -> None:
                 after = budget.estimate_tokens(messages)
                 print(f"  [reflect] distilled turn -> recap | context ~{before:,} -> ~{after:,} tok")
         print(budget.budget_line(budget.estimate_tokens(messages), window))
+    for s in mcp_servers:  # stdio servers also exit on stdin EOF — this is just tidy
+        s.stop()
     print(f"\nsession total: {totals['in']:,} in / {totals['out']:,} out tokens")

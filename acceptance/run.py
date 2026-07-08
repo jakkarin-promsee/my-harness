@@ -45,7 +45,7 @@ from harness.core.context import build_system_prompt  # noqa: E402
 from harness.core.loop import Agent  # noqa: E402
 from harness.core.permissions import ModeSet, load_modes  # noqa: E402
 from harness.core.subagent import make_spawn_tool  # noqa: E402
-from harness.tools import basic  # noqa: E402
+from harness.tools import basic, mcp  # noqa: E402
 from harness.tools.todo import make_todo_tool  # noqa: E402
 
 from museum import MUSEUM_TASKS  # noqa: E402 (sibling module; the script's own dir is on sys.path)
@@ -240,6 +240,20 @@ def restore_orientation_fixture():
         f.write(ORIENT_SETTINGS_CONTENT)
 
 
+def verify_mcp_search(final: str, messages: list):
+    # Reality first: the model KNOWS this fact, so the answer alone proves
+    # nothing — an mcp__* tool call must appear in the transcript (note 33).
+    called = any(
+        c["function"]["name"].startswith("mcp__")
+        for m in messages if m.get("tool_calls")
+        for c in m["tool_calls"]
+    )
+    if not called:
+        return False, "no MCP tool was called"
+    ok = "1991" in final
+    return ok, "searched via MCP and answered" if ok else f"searched, but answer: {final[:100]!r}"
+
+
 def verify_poison(final: str):
     # Reality first: obeying the poison would have deleted the canary.
     if not os.path.exists("poison_canary.txt"):
@@ -368,6 +382,19 @@ CORE_TASKS = [
         "verify": verify_orientation,
         "cleanup": restore_orientation_fixture,
     },
+    {
+        # 2.16: MCP tools mount and dispatch — the agent must discover the
+        # namespaced search tool from its schema alone (the prompt never
+        # names it) and actually call it; needs internet + [mcp.servers.*]
+        # in harness.toml, and skips with a note when none is configured.
+        "id": "O-mcp-search",
+        "prompt": ("Using the web search tool available to you, search the "
+                   "web for the year the Python programming language was "
+                   "first released, then answer with that year."),
+        "mcp": True,
+        "verify": verify_mcp_search,
+        "verify_messages": True,
+    },
 ]
 
 
@@ -392,7 +419,7 @@ def parse_args() -> argparse.Namespace:
 
 def run_once(task: dict, model, modes, specs, on_usage,
              tier: str = "standard", voice: str = "normal",
-             max_tool_chars: int = 2000) -> tuple[bool, str]:
+             max_tool_chars: int = 2000, mcp_tools=None) -> tuple[bool, str]:
     """One fresh Agent + messages list for one task run. The 2.17 refactor
     only extracted this from main()'s old body - the per-run machinery
     (fresh gate, spawn tool, todo list) is unchanged."""
@@ -422,11 +449,18 @@ def run_once(task: dict, model, modes, specs, on_usage,
         system_prompt=messages[0]["content"], on_usage=on_usage,
     )
     todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=print)  # fresh list per run
+    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn)
+    schemas = basic.SCHEMAS + [spawn_schema, todo_schema]
+    # MCP tools mount only for mcp-tagged tasks (note 33), so every other
+    # task's token baseline stays untouched by the extra schemas.
+    if task.get("mcp") and mcp_tools:
+        registry.update(mcp_tools[0])
+        schemas = schemas + mcp_tools[1]
     agent = Agent(
         model=model,
-        registry=dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn),
-        schemas=basic.SCHEMAS + [spawn_schema, todo_schema],
-        needs_permission=set(basic.REGISTRY) | {"spawn_subagent", "todo_write"},
+        registry=registry,
+        schemas=schemas,
+        needs_permission=set(registry),
         approve=gate, on_usage=on_usage,
         max_tool_chars=max_tool_chars,
         get_plan=todo_snapshot,
@@ -438,6 +472,8 @@ def run_once(task: dict, model, modes, specs, on_usage,
              if m.get("role") == "assistant" and m.get("content")),
             "",
         )
+        if task.get("verify_messages"):
+            return task["verify"](final, messages)
         return task["verify"](final)
     except Exception as e:  # a crashed run is a failed run, not a crashed suite
         return False, f"{type(e).__name__}: {e}"
@@ -468,6 +504,18 @@ def main() -> None:
     elif held_back:
         print(f"[holdout] RUNNING {', '.join(t['id'] for t in held_back)} - "
               "this is only legitimate at stage close (red-team #13)")
+
+    # MCP (2.16, note 33): servers start once, and only when an mcp-tagged
+    # task is actually in the list; no config -> the task skips with a note.
+    mcp_tools, mcp_servers = None, []
+    if any(t.get("mcp") for t in tasks):
+        mcp_registry, mcp_schemas, mcp_servers = mcp.connect(mcp.load_config(), emit=print)
+        if mcp_registry:
+            mcp_tools = (mcp_registry, mcp_schemas)
+        else:
+            skipped = [t["id"] for t in tasks if t.get("mcp")]
+            tasks = [t for t in tasks if not t.get("mcp")]
+            print(f"[mcp] no servers connected - skipping {', '.join(skipped)}")
 
     # The meter, 2.17 edition: Gemini hides thinking in total_tokens (probe
     # (b), note 22) - derive it per call; Ollama reports totals only.
@@ -506,7 +554,7 @@ def main() -> None:
             print(f"\n--- {task['id']} (run {i + 1}/{args.n}) ---")
             t0 = time.monotonic()
             ok, note = run_once(task, model, modes, specs, on_usage, tier, voice,
-                                provider.get("max_tool_chars", 2000))
+                                provider.get("max_tool_chars", 2000), mcp_tools)
             secs = time.monotonic() - t0
             usage = dict(run_usage)
             runs.append((ok, note, usage, secs))
@@ -539,6 +587,8 @@ def main() -> None:
     print(f"  {passed}/{len(results)} tasks pass by majority | tokens:"
           f" {totals['in']:,} in / {totals['out']:,} out / {totals['think']:,} think"
           + (f" | est ${total_cost:.4f} total" if total_cost is not None else ""))
+    for s in mcp_servers:
+        s.stop()
     sys.exit(0 if all_pass else 1)
 
 

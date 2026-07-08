@@ -12,7 +12,7 @@ A harness is a `while` loop around a chat API with tool-calling. The loop is the
 |---|---|
 | `core/` | the loop + everything wrapped around it: `loop`, `context`, `permissions`, `session`, `budget`, `commands`, `subagent` |
 | `providers/` | the `Model` adapters: `base` (protocol), `openai_compat` (Ollama/Gemini), `anthropic` |
-| `tools/` | what the model can DO: `basic` (7 file/shell tools), `todo` |
+| `tools/` | what the model can DO: `basic` (8 file/shell/web tools), `todo`, `mcp` (external tool servers) |
 | `cli/` | `repl.py` — the only human-facing code: provider registry, token meter, permission gate, streaming display |
 | `prompts/` | `system.md` — the identity/rules the harness gives its **own** agents |
 

@@ -1,6 +1,6 @@
 # ROADMAP2 — Stage 2R: Copy the seniors, round two (frontier parity)
 
-> **STAGE CLOSED 2026-07-08.** Exit gate 11/11 on BOTH providers (local `qwen3:4b-instruct` + `gemini-2.5-flash-lite`), 136 offline tests green, §2 gap table re-scored below — every ❌ is now ✅ or consciously-deferred-with-reason. 2.16 MCP **deferred** by owner decision 2026-07-08 (recorded in [ROADMAP3.md](ROADMAP3.md) §0: *"MCP server or search engine is just external skill. The problem now is its core"* — rolls into a future round together with hooks). **[ROADMAP3.md](ROADMAP3.md) (Stage 2C — the cognitive core) governs next.**
+> **STAGE CLOSED 2026-07-08.** Exit gate 11/11 on BOTH providers (local `qwen3:4b-instruct` + `gemini-2.5-flash-lite`), 136 offline tests green, §2 gap table re-scored below — every ❌ is now ✅ or consciously-deferred-with-reason. 2.16 MCP was **deferred** by owner decision that morning (recorded in [ROADMAP3.md](ROADMAP3.md) §0) — then **un-deferred and shipped the same day, after 2C closed** (owner: search-engine context for the agent; [note 33](notes/33-mcp-client.md)). **[ROADMAP3.md](ROADMAP3.md) (Stage 2C — the cognitive core) governed next and closed 2026-07-08; Stage 3 is the open front.**
 >
 > **v2 — approved 2026-07-07.** First drafted after a research pass over Claude Code, opencode, aider, Codex CLI and the local-model landscape; revised the same day after a second, source-verified pass (live docs fetched — §2's claims carry their receipts in §7). Slots **between** ROADMAP.md's Stage 2 (closed, gate 7/7) and Stage 3 (untouched — still the destination). Same constitution, same mini-cycle: *study 2–3 references → design note → implement → gate green.* This file governs Stage 2R; ROADMAP.md and CLAUDE.md point here.
 
@@ -56,7 +56,7 @@ The instinct was right on every line — each "vibe idea" has a senior implement
 | Todo/plan tool | ✅ | ✅ | — | ✅ | ✅ 2.9c |
 | Subagents | ✅ | ✅ | — | ✅ | ✅ 2.6 (roles missing) |
 | Sessions/resume, compaction, slash cmds | ✅ | ✅ | ✅ | ✅ | ✅ 2.3/2.5/2.7 |
-| MCP client | ✅ | ✅ | — | ✅ | ❌ **deferred 2026-07-08** (owner, ROADMAP3 §0: external tools aren't the bottleneck — the core is; future round with hooks) |
+| MCP client | ✅ | ✅ | — | ✅ | ✅ 2.16 — **un-deferred and shipped 2026-07-08 after 2C closed** (note 33): stdio client, `[mcp.servers.*]` → namespaced registry merge, duckduckgo search live on all three lanes |
 | Hooks | ✅ (30 lifecycle events) | ✅ | — | — | ❌ consciously skipped (no consumer until Stage 3.4; revisit with MCP) |
 
 Read the ✅ column bottom-up and Stage 2 did its job: the loop, tools, sessions, permissions, streaming and todo are all standard. The gap is concentrated in exactly the owner's wishes. Good instincts.
@@ -194,6 +194,6 @@ One command, two providers, like Stage 2:
 | 2.13 web_fetch + diff gate | **done** 2026-07-07 — note 19; gate 10/10 on BOTH providers (new task J: fetch example.com, report the heading); diff gate proven by pytest snapshots (`tests/test_repl.py`) |
 | 2.14 Skills | **done** 2026-07-07 — note 20; gate 11/11 on BOTH providers (new task K: fixture skill's house format read and obeyed, never guessed); trigger lesson: Rules-section instruction + "cannot be guessed" descriptions |
 | 2.15 Local lab | **done** 2026-07-07 — note 21 (lab log); FA+q8_0 applied machine-wide: +13 % gen speed, ctx ceiling stays 8,192 (weights overflow the card — quant buys placement, not window); bake-off: incumbent holds, phi4-mini + gemma3:4b both fail at smoke; gate 11/11 on tuned config |
-| 2.16 MCP client (stretch) | **deferred** 2026-07-08 — owner decision (ROADMAP3 §0): *"MCP server or search engine is just external skill. The problem now is its core."* Rolls into a future round together with hooks; the number stays reserved |
+| 2.16 MCP client (stretch) | **done** 2026-07-08 — deferred that morning (ROADMAP3 §0), **un-deferred by the owner the same day after 2C closed** ("add MCP, especially the search engine"). Note 33; stdio client in `tools/mcp.py`; duckduckgo search (no key) is the flagship; gate task O: local PASS, lite 3/3, flash 3/3; 196 offline tests. Hooks remain the only conscious skip |
 
 *(Approved 2026-07-07; **closed 2026-07-08** — gate 11/11 both providers, gap table re-scored, 2.16 deferred. [ROADMAP3.md](ROADMAP3.md) / Stage 2C governs next.)*

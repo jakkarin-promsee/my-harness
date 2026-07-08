@@ -6,6 +6,8 @@ A tool is a plain Python function (what runs) plus a JSON-schema advertisement (
 |---|---|
 | `basic.py` | 8 core tools, every observation **framed** since 2.21a/b (first line = what happened + shape; notes 27–28): `read_file` (line-numbered + pageable — the tail notice is the retrieval path), `write_file`, `list_dir` (dirs/ first, file sizes, counted), `run_shell`, `edit_file` (reads raw; flags a copied `N:` display prefix), `grep` (counted matches), `glob` (counted, newest first), `web_fetch` (HTTP GET → readable text, note 19). Descriptions teach *workflow*, not just parameters. `REGISTRY` maps name→fn; `SCHEMAS` are the advertisements; `NEEDS_PERMISSION` = the mutating three + `web_fetch` (network egress asks). |
 | `todo.py` | `todo_write` — an external checklist the model can't forget. Replace-the-whole-list semantics (no patch ops for a small model to fumble). Note 13. |
+| `mcp.py` | The MCP client (2.16, note 33): stdio JSON-RPC to external tool servers from `harness.toml` `[mcp.servers.*]`. Their tools mount as `mcp__<server>__<tool>` and fall into each mode's `default` permission bucket (ask in build/auto, deny in explore). Reader-thread wire, framed results, every failure = ERROR text. `/mcp` in the REPL lists what's connected. |
+| `ca_bundle.py` | `python -m harness.tools.ca_bundle` — regenerates `~/.harness/ca-bundle.pem` (certifi + Windows stores) so MCP *child* processes survive this machine's TLS interception (truststore injection can't reach them). |
 
 `spawn_subagent` is a tool too, but it lives in `core/subagent.py` because it needs the loop itself.
 

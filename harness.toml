@@ -35,3 +35,21 @@ default = "ask"
 allow = ["read_file", "list_dir", "grep", "glob", "todo_write", "write_file", "edit_file"]
 ask = ["run_shell", "spawn_subagent", "web_fetch"]
 deny = []
+
+# MCP servers (2.16, docs/notes/33-mcp-client.md): external tool processes
+# whose tools mount into the registry as mcp__<server>__<tool>. Their names
+# fall into each mode's `default` bucket unless listed above — ask in
+# build/auto, deny in explore. Optional keys: enabled (default true),
+# timeout (seconds per call, default 30), env (extra environment).
+
+[mcp.servers.duckduckgo]
+# Web search, no API key (github.com/nickclyde/duckduckgo-mcp-server).
+# uvx downloads+caches the package on first run — the first launch is slow.
+# Three machine truths baked in (note 33): --system-certs gets uvx itself
+# past this machine's TLS interception; the [browser] extra defeats DDG's
+# TLS-fingerprint bot detection; SSL_CERT_FILE hands the child process the
+# certifi+Windows-store bundle (truststore injection can't reach children —
+# regenerate with `uv run python -m harness.tools.ca_bundle` if certs rotate).
+command = "uvx"
+args = ["--system-certs", "--from", "duckduckgo-mcp-server[browser]", "duckduckgo-mcp-server"]
+env = { SSL_CERT_FILE = "C:/Users/BTCOM/.harness/ca-bundle.pem", REQUESTS_CA_BUNDLE = "C:/Users/BTCOM/.harness/ca-bundle.pem" }
