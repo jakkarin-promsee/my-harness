@@ -56,6 +56,14 @@ breakage — the fix, if you want one, is making D's expected function name
 unique again (owner call, since renaming the fixture function touches the
 frozen Stage-1 artifact).)*
 
+*(2026-07-08 night, 2.31 runs: **E-exact-edit joins the ledger** — 4/6
+across six byte-identical configs; every miss is the same path-guess trap:
+the filename `acceptance_scratch.py` baits a `acceptance/*.py`-scoped glob
+and the agent declares the file missing instead of widening to `**/`. The
+task predates the orientation map that now advertises the `acceptance/`
+dir. Fix candidates for your call: rename the fixture to something
+unbaited (`scratch_probe.py`), or accept N=3-majority as E's bar.)*
+
 ## 0. Ollama tray app needs a reboot (2026-07-07, from the 2.15 lab; still true 2026-07-08)
 
 *(2026-07-08 update: one 695s ReadTimeout stall observed during the Stage 2C

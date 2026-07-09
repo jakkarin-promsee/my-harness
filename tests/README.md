@@ -17,6 +17,7 @@ Run: `uv run pytest -q` (sub-second). Keep it green before and after every chang
 | `test_tools.py` | the 8 core tools; `web_fetch` against a fake `requests.get` (2.13) |
 | `test_repl.py` | the gate's unified-diff preview: `render_diff` snapshots + the ask prompt (2.13) |
 | `test_todo.py` | todo replace-semantics + status validation |
+| `test_ask.py` | ask_user (2.31): verbatim/option/default answers; EOF never hangs — flagged default or honest delegation |
 | `test_subagent.py` | fresh vs fork, child-tools-minus-spawn, only-final-text-returns |
 | `test_retry.py` | the shared retry policy (2.26): scripted responses + captured sleeps — backoff, Retry-After, never-retry-4xx, zero seconds slept |
 | `test_openai_compat.py` / `test_streaming.py` | the OpenAI adapter + SSE deltas; think→reasoning_effort (2.12) |

@@ -43,6 +43,7 @@ from harness.providers.anthropic import AnthropicModel
 from harness.providers.ollama_native import OllamaNativeModel
 from harness.providers.openai_compat import OpenAICompatModel
 from harness.tools import basic, mcp
+from harness.tools.ask import make_ask_tool
 from harness.tools.todo import make_todo_tool
 
 load_dotenv()
@@ -485,8 +486,16 @@ def main() -> None:
     # never call it (docs/notes/13-todo-tool.md). Its snapshot feeds the
     # attention anchors (2.23).
     todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=info)
-    registry = dict(base_registry, spawn_subagent=spawn_fn, todo_write=todo_fn)
-    schemas = base_schemas + [spawn_schema, todo_schema]
+    # ask_user (2.31, note 40) is top-level only too: children never
+    # interrogate the human. In headless mode nobody is on stdin - the tool's
+    # EOF path answers with the recommended default and says so.
+    def _no_user(prompt: str) -> str:
+        raise EOFError
+    ask_fn, ask_schema = make_ask_tool(ask_input=_no_user if headless else input,
+                                       emit=info)
+    registry = dict(base_registry, spawn_subagent=spawn_fn, todo_write=todo_fn,
+                    ask_user=ask_fn)
+    schemas = base_schemas + [spawn_schema, todo_schema, ask_schema]
 
     agent = Agent(
         model=model,

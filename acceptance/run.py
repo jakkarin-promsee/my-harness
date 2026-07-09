@@ -47,6 +47,7 @@ from harness.core.loop import Agent  # noqa: E402
 from harness.core.permissions import ModeSet, load_modes  # noqa: E402
 from harness.core.subagent import make_spawn_tool  # noqa: E402
 from harness.tools import basic, mcp  # noqa: E402
+from harness.tools.ask import make_ask_tool  # noqa: E402
 from harness.tools.todo import make_todo_tool  # noqa: E402
 
 from museum import MUSEUM_TASKS  # noqa: E402 (sibling module; the script's own dir is on sys.path)
@@ -476,8 +477,21 @@ def run_once(task: dict, model, modes, specs, on_usage,
         system_prompt=messages[0]["content"], on_usage=on_usage,
     )
     todo_fn, todo_schema, todo_snapshot = make_todo_tool(emit=print)  # fresh list per run
-    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn)
-    schemas = basic.SCHEMAS + [spawn_schema, todo_schema]
+    # ask_user (2.31, note 40): scripted runs have no human. A task may
+    # provide "answers": [...] to script a dialogue; when they run out (or
+    # none exist) the tool's EOF path takes the recommended default - the
+    # headless semantics, exercised by construction.
+    answers = list(task.get("answers", []))
+
+    def scripted_input(prompt: str) -> str:
+        if answers:
+            return answers.pop(0)
+        raise EOFError
+
+    ask_fn, ask_schema = make_ask_tool(ask_input=scripted_input, emit=print)
+    registry = dict(basic.REGISTRY, spawn_subagent=spawn_fn, todo_write=todo_fn,
+                    ask_user=ask_fn)
+    schemas = basic.SCHEMAS + [spawn_schema, todo_schema, ask_schema]
     # MCP tools mount only for mcp-tagged tasks (note 33), so every other
     # task's token baseline stays untouched by the extra schemas.
     if task.get("mcp") and mcp_tools:
