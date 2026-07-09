@@ -26,7 +26,8 @@ def test_backbone_sections_tiers_and_worlds():
         ("mission", "micro", "operator"), ("identity", "micro", "core"),
         ("identity", "standard", "core"),
         ("loop", "micro", "operator"), ("loop", "standard", "operator"),
-        ("safety", "micro", "core"), ("tools", "compact", "operator"),
+        ("safety", "micro", "core"), ("honesty", "standard", "core"),
+        ("tools", "compact", "operator"),
         ("failure", "compact", "operator"),
         ("verification", "compact", "operator"),
         ("companion", "micro", "companion"),
@@ -40,6 +41,19 @@ def test_just_talk_rides_standard_not_micro():
     assert "just talking" in context.load_backbone("standard")
     micro_op = context.load_backbone("micro")
     assert micro_op.startswith("You are a coding agent that OPERATES")
+
+
+def test_honesty_rides_both_worlds_at_standard_only():
+    # 2.32 (note 41): the stable character is core - the exact part that
+    # must not change between worlds. STANDARD only: the micro variant was
+    # measured (M7-local: the rule fires but the re-check drowns; E diluted
+    # again) and the frozen-micro law became total - the MICRO backbone is
+    # the 2C artifact, frozen; the mind work lives at standard+.
+    for world in ("operator", "companion"):
+        std = context.load_backbone("standard", world=world)
+        assert "Evidence beats agreement" in std and "insistence alone" in std
+    assert "premise" in context.load_backbone("standard")
+    assert "insistence alone" not in context.load_backbone("micro")
 
 
 def test_markers_never_leak_into_the_prompt(tmp_path):

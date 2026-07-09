@@ -300,9 +300,12 @@ code `src/harness/core/permissions.py`.
 
 The backbone is `src/harness/prompts/system.md` — tagged sections trimmed by
 tier (the ladder) and selected by **world** (2.30): `core` sections (identity,
-safety, style) ride every role; `operator` sections (mission, loop, tools,
-failure, verification, examples) are the working world; the `companion`
-section is the conversational one. Roles extend it, `world:` picks the
+safety, honesty, style) ride every role; `operator` sections (mission, loop,
+tools, failure, verification, examples) are the working world; the
+`companion` section is the conversational one. Two hard-won laws: mission
+stays FIRST at micro, and **the MICRO loop is frozen** (notes 39–40 — every
+added clause dilutes the 4B's action drive; additions go to standard+ or
+tool schemas). Roles extend it, `world:` picks the
 wrapper, `backbone: false` opts out entirely. Measure any change: `/prompt`
 shows the per-tier token cost, and prompt wording is empirically fragile —
 the accusatory anchor cost a museum task until reworded ambient (note 30).
