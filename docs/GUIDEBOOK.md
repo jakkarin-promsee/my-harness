@@ -1,20 +1,34 @@
 # The Guidebook
 
-The complete manual for the harness, in two parts: **Part I — driving it** (every
-flag, command, and knob a user meets) and **Part II — extending it** (how to add a
-tool, a provider, a role, a skill, an MCP server — and how to know it works).
+The detailed index and manual for the harness. Start with [the root README](../README.md) for a complete tour; use this page when you need the exact behavior of a command, the reasoning behind a design choice, or a route into the implementation.
 
-This document is a *map with routes*: each section gives you the working knowledge
-and then points at the one place the full detail lives (a folder `README.md` for
-what's-there, a `docs/notes/` entry for the why, a docstring for the how). One fact,
-one home — the hierarchy is [note 15](notes/15-context-hierarchy.md).
+This page has two parts: **driving it** covers installation, providers, flags, commands, modes, context, sessions, and permissions; **extending it** covers architecture, recipes, tests, and where details live. Each section links to the folder README for the file map, a design note for the why, or a module docstring for the implementation; see [the context hierarchy](notes/15-context-hierarchy.md).
+
+## Find what you need
+
+| I want to… | Go to |
+| --- | --- |
+| Install it or decide between local and API models | [Install and first run](#install-and-first-run), [Providers](#providers--which-model-answers) |
+| Find a launch option or run one task without a REPL | [Launch flags](#launch-flags) |
+| Change modes, roles, thinking, prompt tier, or voice | [Slash commands](#built-in-slash-commands), [Modes](#modes--how-much-can-it-touch), [Agents](#agents--who-is-it), [Reasoning](#reasoning--pay-for-thinking-only-when-it-helps) |
+| Understand context size, compaction, tokens, or resume | [Context controls](#context-controls--what-each-knob-changes), [Sessions and meter](#sessions-tokens-and-the-meter) |
+| Use or add tools, commands, skills, or MCP servers | [Tool catalog](#tools-the-model-can-call), [Skills](#skills--procedures-the-model-discovers), [MCP](#mcp-servers--the-infinite-tool-bus), [Extension recipes](#recipes) |
+| Understand the execution path or change the code | [Architecture](#the-architecture-in-one-page), [Source map](#source-and-design-index), [Testing](#testing--the-three-rings) |
+| Find the current plan or a known limitation | [ROADMAP4](ROADMAP4.md), [open problems](problem.md), [design-note index](notes/README.md) |
 
 ---
 
 # Part I — driving the harness
 
-Everything here happens inside `uv run harness [provider]`. Type a task at the
-`you>` prompt; slash commands control the harness itself.
+Everything here happens inside `uv run harness [provider]`. Type a task at the `you>` prompt; slash commands control the harness itself.
+
+## Install and first run
+
+Use Python 3.11+ and `uv`, then run from the repository root: `uv sync`, `uv run pytest -q`, and `uv run harness --help`. For the free local lane, start Ollama, run `ollama pull qwen3:4b-instruct`, then `uv run harness`; the thinking lane uses `ollama pull qwen3:4b` and `uv run harness ollama-think`.
+
+For Gemini, set `GEMINI_API_KEY` and start `uv run harness gemini` or `uv run harness gemini-flash`; for Anthropic, set `ANTHROPIC_API_KEY` and start `uv run harness anthropic`. Put keys in the environment or the untracked root `.env`, never in committed files. API calls require network access and may cost money; the Anthropic adapter remains live-untested in this project.
+
+The repository's `harness.toml` includes a DuckDuckGo MCP server that `uvx` may download on first launch and a certificate-bundle path specific to the owner's machine; adapt or disable that entry for another machine. See [MCP servers](#mcp-servers--the-infinite-tool-bus) for the configuration shape.
 
 ## Providers — which model answers
 
@@ -25,14 +39,23 @@ uv run harness gemini-flash   # the quality lane
 
 | Provider | What it is | When to use it |
 |---|---|---|
-| `ollama` | `qwen3:4b-instruct` local via Ollama's native API — free, runs the MICRO prompt tier on the 8K window | the workhorse for loop debugging: a runaway loop costs $0 |
+| `ollama` | `qwen3:4b-instruct` local via Ollama's native API — free, with a MICRO prompt tier for a small configured window | the workhorse for loop debugging: a runaway loop costs $0 |
 | `ollama-think` | the *thinking* sibling of the same model — reasoning streams dim to the terminal; the experimental turn-reflection recap runs here (note 32) | the fun/study lane: watching a small model reason |
 | `gemini` | `gemini-2.5-flash-lite` via the OpenAI-compat endpoint | the cheap regression lane (know its limit: it coin-flips role constraints — `docs/problem.md` #2) |
 | `gemini-flash` | `gemini-2.5-flash` — the primary quality target since 2026-07-08 | validating response *quality*; museum baselines |
 | `anthropic` | native `/v1/messages` adapter, fully built, **live-untested** | only after `ANTHROPIC_API_KEY` is set deliberately (`docs/problem.md` #1) |
 
-**The budget rule** (constitution §4): debug agent-loop *logic* locally, validate
-*quality* on the paid lanes. Never point a possibly-buggy loop at a paid endpoint.
+**The budget rule** (constitution §4): debug agent-loop *logic* locally, validate *quality* on the paid lanes. Never point a possibly-buggy loop at a paid endpoint.
+
+| Environment variable | Used for |
+| --- | --- |
+| `GEMINI_API_KEY` | Authenticates both Gemini lanes. |
+| `ANTHROPIC_API_KEY` | Enables the native Anthropic adapter; no call is made without a value. |
+| `ANTHROPIC_MODEL` | Overrides the default Anthropic model ID. |
+| `OLLAMA_MODEL` | Overrides the default `ollama` lane's model ID; `ollama-think` remains pinned to its thinking model. |
+| `OLLAMA_CONTEXT_LENGTH` | Sets the harness's estimate of the local context window at startup; set Ollama's actual window to match. |
+
+The CLI loads the root `.env` through `python-dotenv`; keep that file untracked. Provider defaults and environment reads are in [`cli/repl.py`](../src/harness/cli/repl.py).
 
 ## Launch flags
 
@@ -59,32 +82,46 @@ uv run harness gemini-flash   # the quality lane
 | `/chat` · `/work` | the two worlds (note 39): one-word switch to the companion (warm conversation, no tools) or back to the operator — aliases for `/agent chill` / `/agent build` |
 | `/mcp` | list connected MCP servers and the tools they mounted |
 | `/tokens` | context size vs. the model's window |
-| `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file). Also fires **automatically** at a per-provider window threshold (85 % default, 60 % on the 8K local lanes — note 36); `auto_compact: 0` in a provider entry disables |
+| `/compact` | summarize-and-replace the conversation (costs one model call; continues in a new session file). Also fires **automatically between interactive turns** at a per-provider window threshold (85% default, 60% on the local lanes — note 36); `auto_compact: 0` in a provider entry disables |
 | `/NAME args` | anything else runs `commands/NAME.md` with `{{args}}` substituted |
+
+## Tools the model can call
+
+| Tool | Job | Permission note |
+| --- | --- | --- |
+| `read_file`, `list_dir`, `grep`, `glob` | Inspect files and find relevant paths or text with bounded, framed output. | Allowed in the operator modes shipped here. |
+| `write_file`, `edit_file` | Create or change files; edits show a unified diff when approval is requested. | Ask in `build`; allowed inside the working directory in `auto`; denied in `explore`. |
+| `run_shell` | Execute a command and return its output. | Asks in `build` and `auto`; denied in `explore`. |
+| `web_fetch` | Fetch a web page and return readable text. | Asks in `explore`, `build`, and `auto` because it uses the network. |
+| `todo_write` | Keep an external task list across model calls. | Allowed in the operator modes shipped here. |
+| `ask_user` | Ask a question and return the answer within the same agent turn. | Allowed in the operator modes; headless input uses the flagged recommended default when provided. |
+| `spawn_subagent` | Run a child loop with fresh or forked context and return its final text. | Asks in `build` and `auto`; denied in `explore`. |
+| `mcp__server__tool` | Call a tool advertised by a configured MCP server. | Uses the active mode's default rule unless named explicitly in `harness.toml`. |
+
+`chat` sends no tool schemas. The exact schemas and result formats live in [the tools map](../src/harness/tools/README.md); the subagent implementation lives in [`core/subagent.py`](../src/harness/core/subagent.py). See [structured observations](notes/27-structured-observations.md), [asking the user](notes/40-ask-user.md), and [subagents](notes/08-subagents.md) for why these interfaces look this way.
+
+## Context controls — what each knob changes
+
+There is no `/context` command. `/tokens` estimates the size of the current message list against the active model's configured window; `/compact` asks the model to summarize and replace older conversation content, keeping the system message; and `/prompt micro|compact|standard|full` changes the system-prompt backbone rather than truncating the conversation. Automatic compaction runs between interactive turns when the estimate crosses the lane's threshold (60% for the local lanes, 85% by default elsewhere). It does not run at the end of a one-turn `-p` invocation.
+
+`OLLAMA_CONTEXT_LENGTH` is read when the harness starts and used as the Ollama window for its meter and compaction threshold; configure Ollama itself to use the same window. The local provider's default in code is 4,096 if that variable is absent. For example, put `OLLAMA_CONTEXT_LENGTH=8192` in the root `.env` before launching the harness, or set it in your shell (`$env:OLLAMA_CONTEXT_LENGTH = "8192"` in PowerShell). Changing this value in the harness does not resize the running Ollama server's window. Role switches and `/prompt` or `/voice` changes create a new session file while carrying conversation history forward; `/compact` also creates a new session file after replacement. See [context v1](notes/07-context-v1.md), [prompt ladder](notes/24-prompt-ladder.md), and [auto-compaction](notes/36-auto-compact.md).
 
 ## Modes — how much can it touch?
 
-A mode is a named permission profile in [`harness.toml`](../harness.toml). Two laws
-hold everywhere: the **deny list is absolute** (even `-y` can't cross it), and an
-auto-approved write only counts **inside the working directory** — outside, it asks
-anyway.
+A mode is a named permission profile in [`harness.toml`](../harness.toml). Two laws hold everywhere: the **deny list is absolute** (even `-y` can't cross it), and an auto-approved write only counts **inside the working directory** — outside, it asks anyway.
 
 | Mode | Feels like | What runs without asking |
 |---|---|---|
 | `chat` | the plain website chat | nothing — tools aren't even offered |
-| `explore` | look, don't touch | reads (`read_file`, `grep`, `glob`, `list_dir`); everything else is refused |
+| `explore` | inspect without local writes | local reads are allowed; `web_fetch` asks; writes and shell commands are refused |
 | `build` | the default | reads run; writes/edits/shell ask y/N |
 | `auto` | trusted coding flow | reads + writes/edits inside this folder; shell still asks |
 
-When a tool is refused, the model is *told* — it reads the denial as a tool result
-and adapts (usually by explaining what it would have done). Design:
-[note 16](notes/16-permission-modes.md).
+When a tool is refused, the model is *told* — it reads the denial as a tool result and adapts (usually by explaining what it would have done). Design: [note 16](notes/16-permission-modes.md).
 
 ## Agents — who is it?
 
-A role is a markdown file in [`agents/`](../agents/): frontmatter (description,
-default `mode`, optional pinned `model`, optional `think` level) + body = its
-specialization, layered onto the shared backbone prompt. Ships with:
+A role is a markdown file in [`agents/`](../agents/): frontmatter (description, default `mode`, optional pinned `model`, optional `think` level) + body = its specialization, layered onto the shared backbone prompt. Ships with:
 
 | Role | Mode | Use it for |
 |---|---|---|
@@ -93,44 +130,21 @@ specialization, layered onto the shared backbone prompt. Ships with:
 | `chill` | chat | the companion world (2.30): warm conversation, no tools, same core character — `/chat` jumps here |
 | `reviewer` | explore | adversarial read-only review — reports problems, fixes nothing |
 
-The flow that earns its keep: `/agent plan` → discuss until the plan is right →
-`/agent build` → "execute the plan above". History carries over; each switch
-continues in a fresh session file so `--resume` stays truthful. Subagents can wear
-roles too: the model can call `spawn_subagent(agent="reviewer", ...)`. Design:
-[note 17](notes/17-agents.md) + [note 23](notes/23-backbone.md).
+The flow that earns its keep: `/agent plan` → discuss until the plan is right → `/agent build` → "execute the plan above". History carries over; each switch continues in a fresh session file so `--resume` stays truthful. Subagents can wear roles too: the model can call `spawn_subagent(agent="reviewer", ...)`. Design: [note 17](notes/17-agents.md) + [note 23](notes/23-backbone.md).
 
 ## Reasoning — pay for thinking only when it helps
 
-`/think on` makes a capable model reason in a **separated trace**: streamed dim to
-your terminal, then *stripped from history* so it never bills a later call.
-`/think off` suppresses it — on Gemini this really is an off-switch
-(`reasoning_effort: "none"`), which matters because **flash thinks by default and
-bills it invisibly**: the meter's `N think` count (derived as
-`total − prompt − completion`) is how you see it. `low/medium/high` set effort on
-models with levels.
+`/think on` makes a capable model reason in a **separated trace**: streamed dim to your terminal, then *stripped from history* so it never bills a later call. `/think off` suppresses it — on Gemini this really is an off-switch (`reasoning_effort: "none"`), which matters because **flash thinks by default and bills it invisibly**: the meter's `N think` count (derived as `total − prompt − completion`) is how you see it. `low/medium/high` set effort on models with levels.
 
-Why the default is off, in two measured lines: thinking qwen3 burned **10× the
-tokens for a worse score** (13,614 vs 1,460; 5/7 vs 7/7), and flash's hidden default
-thinking bought nothing at our task grain (A/B'd in the 2.20 lab — note 26). Mind
-the fine print: this knob needs Ollama's *native* API (the OpenAI-compat endpoint
-silently ignores it), and fixed-mode models ignore it entirely. Economics + probes:
-[note 18](notes/18-reasoning-control.md).
+Why the default is off, in two measured lines: thinking qwen3 burned **10× the tokens for a worse score** (13,614 vs 1,460; 5/7 vs 7/7), and flash's hidden default thinking bought nothing at our task grain (A/B'd in the 2.20 lab — note 26). Mind the fine print: this knob needs Ollama's *native* API (the OpenAI-compat endpoint silently ignores it), and fixed-mode models ignore it entirely. Economics + probes: [note 18](notes/18-reasoning-control.md).
 
 ## Skills — procedures the model discovers
 
-A skill is `skills/<name>/SKILL.md` ([the open Agent Skills standard](https://agentskills.io/specification)):
-at startup only each skill's **name + description line** enters the system prompt;
-when a task matches, the model reads the full body with `read_file` — progressive
-disclosure, so a big library costs almost nothing until used. See
-[`skills/README.md`](../skills/README.md) and [note 20](notes/20-skills.md).
+A skill is `skills/<name>/SKILL.md` ([the open Agent Skills standard](https://agentskills.io/specification)): at startup only each skill's **name + description line** enters the system prompt; when a task matches, the model reads the full body with `read_file` — progressive disclosure, so a big library costs almost nothing until used. See [`skills/README.md`](../skills/README.md) and [note 20](notes/20-skills.md).
 
 ## MCP servers — the infinite tool bus
 
-The harness speaks [MCP](https://modelcontextprotocol.io) as a stdio client: any
-server declared in `harness.toml` is spawned at startup and its tools mount into
-the registry as `mcp__<server>__<tool>`, gated like every other tool (they fall
-into each mode's `default` bucket — **ask** in `build`/`auto`, **deny** in
-`explore`). `/mcp` shows what's connected.
+The harness speaks [MCP](https://modelcontextprotocol.io) as a stdio client: any server declared in `harness.toml` is spawned at startup and its tools mount into the registry as `mcp__<server>__<tool>`, gated like every other tool (they fall into each mode's `default` bucket — **ask** in `build`/`auto`, **deny** in `explore`). `/mcp` shows what's connected.
 
 ```toml
 [mcp.servers.duckduckgo]
@@ -141,43 +155,22 @@ env = { SSL_CERT_FILE = "C:/Users/BTCOM/.harness/ca-bundle.pem" }  # the TLS not
 # timeout = 30        # seconds per call
 ```
 
-The shipped flagship is DuckDuckGo web search — no API key, so the free lanes stay
-free. Two operational notes, both learned the hard way (note 33):
+The shipped flagship is DuckDuckGo web search — no API key, so the free lanes stay free. Two operational notes, both learned the hard way (note 33):
 
-- **Child-process TLS:** this machine's TLS interception breaks Python inside MCP
-  *child* processes (the harness's own truststore fix can't reach them). The cure
-  is `python -m harness.tools.ca_bundle`, which writes certifi + the Windows cert
-  stores to `~/.harness/ca-bundle.pem`; hand it to servers via the `env` key.
-  Regenerate when certs rotate.
-- **Economics:** every mounted server's schemas ride *every* call. Two tools are
-  trivial; keep servers few and deliberate, and let the meter have the final word.
+- **Child-process TLS:** this machine's TLS interception breaks Python inside MCP *child* processes (the harness's own truststore fix can't reach them). The cure is `python -m harness.tools.ca_bundle`, which writes certifi + the Windows cert stores to `~/.harness/ca-bundle.pem`; hand it to servers via the `env` key. Regenerate when certs rotate.
+- **Economics:** every mounted server's schemas ride *every* call. Two tools are trivial; keep servers few and deliberate, and let the meter have the final word.
 
 ## Sessions, tokens, and the meter
 
-Every message lands in `sessions/<id>.jsonl` the moment it exists — a crash never
-loses more than nothing. `--resume` replays the latest (or a named) session;
-`/compact` and `/agent` switches continue in a new file so old transcripts stay
-intact.
+Every message lands in `sessions/<id>.jsonl` the moment it exists — a crash never loses more than nothing. `--resume` replays the latest (or a named) session; `/compact` and `/agent` switches continue in a new file so old transcripts stay intact.
 
-After every call the meter prints `call: X in / Y out | session: totals`, and after
-each turn the context line shows how full the window is. When Gemini reports more
-`total` tokens than `in + out`, the difference is *hidden thinking* — the meter is
-how you catch it.
+After every call the meter prints `call: X in / Y out | session: totals`, and after each turn the context line shows how full the window is. When Gemini reports more `total` tokens than `in + out`, the difference is *hidden thinking* — the meter is how you catch it.
 
-On the `ollama-think` lane only, an experimental **turn reflection** runs: when a
-turn finishes, a fast non-thinking sibling model distills it into a few terse lines
-and the turn's tool churn is replaced by that recap — rolling compaction that makes
-the context line go *down*. Honest limits (it's lossy; resume replays the full
-turn) in [note 32](notes/32-turn-reflection.md).
+On the `ollama-think` lane only, an experimental **turn reflection** runs: when a turn finishes, a fast non-thinking sibling model distills it into a few terse lines and the turn's tool churn is replaced by that recap — rolling compaction that makes the context line go *down*. Honest limits (it's lossy; resume replays the full turn) in [note 32](notes/32-turn-reflection.md).
 
 ## Permissions — the fine print
 
-[`harness.toml`](../harness.toml) is versioned on purpose: the policy is auditable
-and travels with the repo. Per tool: `allow` (silent), `ask` (y/N), `deny` (refused
-flatly). Precedence is fail-closed — deny > ask > allow — and `-y` upgrades *ask*
-only. The `[modes.*]` sections are the profiles `/mode` switches between; the plain
-`[permissions]` table *is* `build`. Design: [note 10](notes/10-permissions-v2.md) +
-[note 16](notes/16-permission-modes.md).
+[`harness.toml`](../harness.toml) is versioned on purpose: the policy is auditable and travels with the repo. Per tool: `allow` (silent), `ask` (y/N), `deny` (refused flatly). Precedence is fail-closed — deny > ask > allow — and `-y` upgrades *ask* only. The `[modes.*]` sections are the profiles `/mode` switches between; the plain `[permissions]` table *is* `build`. Design: [note 10](notes/10-permissions-v2.md) + [note 16](notes/16-permission-modes.md).
 
 ---
 
@@ -196,39 +189,39 @@ cli/repl.py                    human types a request
   → final text back to the human
 ```
 
-The loop knows nothing concrete — model, tools, permission gate, and output
-callbacks are all **injected**, which is why the same loop runs offline against a
-`FakeModel` for zero tokens. The five packages and where to start reading:
-[`src/harness/README.md`](../src/harness/README.md). The anatomy of harnesses in
-general: [note 00](notes/00-anatomy.md).
+The loop knows nothing concrete — model, tools, permission gate, and output callbacks are all **injected**, which is why the same loop runs offline against a `FakeModel` for zero tokens. The five packages and where to start reading: [`src/harness/README.md`](../src/harness/README.md). The anatomy of harnesses in general: [note 00](notes/00-anatomy.md).
 
-**The invariants** (from [`src/harness/CLAUDE.md`](../src/harness/CLAUDE.md)) —
-every recipe below lives inside them:
+## Source and design index
+
+| Question | Source map | Design history |
+| --- | --- | --- |
+| What happens on each model/tool step? | [Core modules](../src/harness/core/README.md), [`loop.py`](../src/harness/core/loop.py) | [Anatomy](notes/00-anatomy.md), [turn control](notes/34-turn-control.md), [wire survival](notes/35-wire-survival.md) |
+| How do messages reach each provider? | [Provider adapters](../src/harness/providers/README.md) | [Provider contract](notes/03-provider-adapter.md), [reasoning control](notes/18-reasoning-control.md) |
+| What can the model do, and what gets blocked? | [Tools](../src/harness/tools/README.md), [`harness.toml`](../harness.toml) | [Tool quality](notes/04-tool-quality.md), [permission modes](notes/16-permission-modes.md), [MCP client](notes/33-mcp-client.md) |
+| How are prompts and context assembled? | [Core modules](../src/harness/core/README.md), [`system.md`](../src/harness/prompts/system.md) | [Context assembly](notes/06-context-assembly.md), [backbone](notes/23-backbone.md), [prompt ladder](notes/24-prompt-ladder.md), [auto-compaction](notes/36-auto-compact.md) |
+| How do roles, templates, and skills work? | [Roles](../agents/README.md), [commands](../commands/README.md), [skills](../skills/README.md) | [Agents](notes/17-agents.md), [commands](notes/09-commands.md), [skills](notes/20-skills.md) |
+| How do I verify behavior? | [Offline tests](../tests/README.md), [live acceptance](../acceptance/README.md) | [Failure museum](notes/22-failure-museum.md), [Stage 2C close](notes/31-stage-2c-close.md) |
+
+The complete chronological design-note catalog is [docs/notes/README.md](notes/README.md); the stage plans are [ROADMAP](ROADMAP.md), [ROADMAP2](ROADMAP2.md), [ROADMAP3](ROADMAP3.md), and [ROADMAP4](ROADMAP4.md). Use [problem.md](problem.md) for active uncertainties rather than treating an older dated note as current behavior.
+
+**The invariants** (from [`src/harness/CLAUDE.md`](../src/harness/CLAUDE.md)) — every recipe below lives inside them:
 
 1. The loop is pure and injected — no HTTP, no `input()`, no printing it wasn't handed.
 2. Adapters translate **both** directions (history is replayed every call).
 3. Tools return a string, **always** — errors become ERROR text the model can read.
 4. `messages` is ours — a plain Python list; editing it is free.
-5. Two audiences — this code is *edited* by a coding agent but *run* by the
-   harness's own agents; `AGENTS.md`, `commands/`, `agents/`, `skills/` at the repo
-   root belong to the runtime.
+5. Two audiences — this code is *edited* by a coding agent but *run* by the harness's own agents; `AGENTS.md`, `commands/`, `agents/`, `skills/` at the repo root belong to the runtime.
 
 ## The workflow — how every change ships
 
 The constitution ([CLAUDE.md](../CLAUDE.md)) in one line each:
 
-1. **Design note first** — one page in `docs/notes/`: what the seniors
-   (Claude Code / Codex CLI / opencode / aider / mini-swe-agent) do, what we build,
-   how we'll know it works. Copy first, invent later.
+1. **Design note first** — one page in `docs/notes/`: what the seniors (Claude Code / Codex CLI / opencode / aider / mini-swe-agent) do, what we build, how we'll know it works. Copy first, invent later.
 2. **One feature at a time**, and no line you can't explain.
-3. **Offline tests green** — `uv run pytest -q` drives the change against the
-   FakeModel (sub-second, zero tokens).
-4. **Live gate before and after** — `uv run python acceptance/run.py <provider>`;
-   debug on `ollama` first, then the gemini lanes. The verifier checks *reality*
-   (files on disk, exit codes), never the model's words.
+3. **Offline tests green** — `uv run pytest -q` drives the change against the FakeModel without model calls.
+4. **Live gate before and after** — `uv run python acceptance/run.py <provider>`; debug on `ollama` first, then the gemini lanes. The verifier checks *reality* (files on disk, exit codes), never the model's words.
 
-The step-by-step procedure a coding agent should follow is the
-**implement-feature** skill in `.claude/skills/`.
+The step-by-step procedure a coding agent should follow is the **implement-feature** skill in `.claude/skills/`.
 
 ## Recipes
 
@@ -236,103 +229,49 @@ Ordered from config-only (no code) to core surgery.
 
 ### Add a slash command — no code
 
-Drop `commands/<name>.md` with `{{args}}` where the user's text should land;
-`/name args` is live immediately (templates are read from the cwd per keystroke).
-Detail: [`commands/README.md`](../commands/README.md), [note 09](notes/09-commands.md).
+Drop `commands/<name>.md` with `{{args}}` where the user's text should land; `/name args` is live immediately (templates are read from the cwd per keystroke). Detail: [`commands/README.md`](../commands/README.md), [note 09](notes/09-commands.md).
 
 ### Add a role — no code
 
-Drop `agents/<name>.md`: frontmatter (`description`, `mode`, optional `model`,
-`think`, `backbone`) + body = the role's specialization on top of the backbone.
-Pin `model: gemini-flash` to give one role the smart paid model while everything
-else stays local — the strong-planner/cheap-executor split is aider's
-benchmark-winning trick. Verify with `/agent <name>`.
-Detail: [`agents/README.md`](../agents/README.md), [notes 17](notes/17-agents.md) + [23](notes/23-backbone.md).
+Drop `agents/<name>.md`: frontmatter (`description`, `mode`, optional `model`, `think`, `backbone`) + body = the role's specialization on top of the backbone. Pin `model: gemini-flash` to give one role the smart paid model while everything else stays local — the strong-planner/cheap-executor split is aider's benchmark-winning trick. Verify with `/agent <name>`. Detail: [`agents/README.md`](../agents/README.md), [notes 17](notes/17-agents.md) + [23](notes/23-backbone.md).
 
 ### Add a skill — no code
 
-Make `skills/<name>/SKILL.md` with a `description:` that says what it does **and
-when to use it** — that line is the only trigger the model gets, and a description
-that *invites guessing* gets guessed (measured on the 4B workhorse — note 20). If
-the body holds a rule the model can't invent, say so: "the format is exact — read
-this skill first". Restart (or `/agent`) to re-assemble the prompt.
-Detail: [`skills/README.md`](../skills/README.md).
+Make `skills/<name>/SKILL.md` with a `description:` that says what it does **and when to use it** — that line is the only trigger the model gets, and a description that *invites guessing* gets guessed (measured on the 4B workhorse — note 20). If the body holds a rule the model can't invent, say so: "the format is exact — read this skill first". Restart (or `/agent`) to re-assemble the prompt. Detail: [`skills/README.md`](../skills/README.md).
 
 ### Mount an MCP server — config only
 
-Add a `[mcp.servers.<name>]` block to `harness.toml` (shape in Part I above),
-restart, check `/mcp`. Permissions need zero new work — `mcp__*` names fall into
-each mode's `default` bucket. If the server is Python-based and dies on TLS,
-it needs the ca-bundle `env` fix (Part I). Keep servers few: their schemas ride
-every call. Detail: [note 33](notes/33-mcp-client.md), client code `src/harness/tools/mcp.py`.
+Add a `[mcp.servers.<name>]` block to `harness.toml` (shape in Part I above), restart, check `/mcp`. Permissions need zero new work — `mcp__*` names fall into each mode's `default` bucket. If the server is Python-based and dies on TLS, it needs the ca-bundle `env` fix (Part I). Keep servers few: their schemas ride every call. Detail: [note 33](notes/33-mcp-client.md), client code `src/harness/tools/mcp.py`.
 
 ### Add a tool
 
-In `src/harness/tools/`: write the function (return a string, **always** — let
-errors become text), add a `_schema(...)` advertisement, register both in
-`REGISTRY`/`SCHEMAS`, and add the name to `NEEDS_PERMISSION` if it mutates or
-touches the network. House rules that took a stage to learn: **frame the
-observation** (first line = what happened + the shape of the result — note 27),
-**bound the output** (`grep` caps at 50 matches; unbounded output eats the 8K
-window), and make ambiguity an error the model can fix (`edit_file`'s
-match-exactly-once). The description teaches *workflow*, not just parameters —
-it's the only signal the model has (note 04). Test pattern: `tests/test_tools.py`.
-Detail: [`src/harness/tools/README.md`](../src/harness/tools/README.md).
+In `src/harness/tools/`: write the function (return a string, **always** — let errors become text), add a `_schema(...)` advertisement, register both in `REGISTRY`/`SCHEMAS`, and add the name to `NEEDS_PERMISSION` if it mutates or touches the network. House rules that took a stage to learn: **frame the observation** (first line = what happened + the shape of the result — note 27), **bound the output** (`grep` caps at 50 matches; unbounded output eats the 8K window), and make ambiguity an error the model can fix (`edit_file`'s match-exactly-once). The description teaches *workflow*, not just parameters — it's the only signal the model has (note 04). Test pattern: `tests/test_tools.py`. Detail: [`src/harness/tools/README.md`](../src/harness/tools/README.md).
 
 ### Add a provider
 
-If it speaks OpenAI-compat: it's just a new entry in `cli/repl.py`'s `PROVIDERS`
-dict (URL + key + model + per-lane defaults) — no new adapter. If it has its own
-dialect: write pure `to_*` / `from_*` translation functions with a thin HTTP
-`complete()` shell, like `providers/anthropic.py`, and remember translation goes
-**both directions**. Test offline against a monkeypatched `requests.post`
-(see `tests/test_anthropic.py`).
-Detail: [`src/harness/providers/README.md`](../src/harness/providers/README.md), [note 03](notes/03-provider-adapter.md).
+If it speaks OpenAI-compat: it's just a new entry in `cli/repl.py`'s `PROVIDERS` dict (URL + key + model + per-lane defaults) — no new adapter. If it has its own dialect: write pure `to_*` / `from_*` translation functions with a thin HTTP `complete()` shell, like `providers/anthropic.py`, and remember translation goes **both directions**. Test offline against a monkeypatched `requests.post` (see `tests/test_anthropic.py`). Detail: [`src/harness/providers/README.md`](../src/harness/providers/README.md), [note 03](notes/03-provider-adapter.md).
 
 ### Add or alter a permission mode
 
-Add a `[modes.<name>]` table in `harness.toml` (each tool: `allow`/`ask`/`deny`,
-plus a `default`). Remember the two laws: deny is absolute, and cwd-scoping guards
-writes. `/mode <name>` switches live. Detail: [note 16](notes/16-permission-modes.md),
-code `src/harness/core/permissions.py`.
+Add a `[modes.<name>]` table in `harness.toml` (each tool: `allow`/`ask`/`deny`, plus a `default`). Remember the two laws: deny is absolute, and cwd-scoping guards writes. `/mode <name>` switches live. Detail: [note 16](notes/16-permission-modes.md), code `src/harness/core/permissions.py`.
 
 ### Change the system prompt
 
-The backbone is `src/harness/prompts/system.md` — tagged sections trimmed by
-tier (the ladder) and selected by **world** (2.30): `core` sections (identity,
-safety, honesty, style) ride every role; `operator` sections (mission, loop,
-tools, failure, verification, examples) are the working world; the
-`companion` section is the conversational one. Two hard-won laws: mission
-stays FIRST at micro, and **the MICRO loop is frozen** (notes 39–40 — every
-added clause dilutes the 4B's action drive; additions go to standard+ or
-tool schemas). Roles extend it, `world:` picks the
-wrapper, `backbone: false` opts out entirely. Measure any change: `/prompt`
-shows the per-tier token cost, and prompt wording is empirically fragile —
-the accusatory anchor cost a museum task until reworded ambient (note 30).
-Detail: [notes 23](notes/23-backbone.md) + [24](notes/24-prompt-ladder.md) +
-[39](notes/39-two-worlds.md).
+The backbone is `src/harness/prompts/system.md` — tagged sections trimmed by tier (the ladder) and selected by **world** (2.30): `core` sections (identity, safety, honesty, style) ride every role; `operator` sections (mission, loop, tools, failure, verification, examples) are the working world; the `companion` section is the conversational one. Two hard-won laws: mission stays FIRST at micro, and **the MICRO loop is frozen** (notes 39–40 — every added clause dilutes the 4B's action drive; additions go to standard+ or tool schemas). Roles extend it, `world:` picks the wrapper, `backbone: false` opts out entirely. Measure any change: `/prompt` shows the per-tier token cost, and prompt wording is empirically fragile — the accusatory anchor cost a museum task until reworded ambient (note 30). Detail: [notes 23](notes/23-backbone.md) + [24](notes/24-prompt-ladder.md) + [39](notes/39-two-worlds.md).
 
 ### Add an acceptance task
 
-Core tasks live in `acceptance/run.py`, museum exhibits in `acceptance/museum.py`.
-A task = a prompt + a **verifier that checks reality** (files on disk, exit codes,
-transcript facts — never the model's words) + optional `mode`/`agent`/`mcp` keys.
-Per-provider task lists keep lane asymmetry explicit; `--n 3` majority is the rule
-for anything flaky (single-run green has burned us — `docs/problem.md` #2).
-Detail: [`acceptance/README.md`](../acceptance/README.md), [note 22](notes/22-failure-museum.md).
+Core tasks live in `acceptance/run.py`, museum exhibits in `acceptance/museum.py`. A task = a prompt + a **verifier that checks reality** (files on disk, exit codes, transcript facts — never the model's words) + optional `mode`/`agent`/`mcp` keys. Per-provider task lists keep lane asymmetry explicit; `--n 3` majority is the rule for anything flaky (single-run green has burned us — `docs/problem.md` #2). Detail: [`acceptance/README.md`](../acceptance/README.md), [note 22](notes/22-failure-museum.md).
 
 ## Testing — the three rings
 
 | Ring | Command | Costs | Proves |
 |---|---|---|---|
-| offline | `uv run pytest -q` | 0 tokens, sub-second | the loop's contract (FakeModel drives every path) |
+| offline | `uv run pytest -q` | 0 model tokens | the loop's contract (FakeModel drives every path) |
 | local live | `uv run python acceptance/run.py ollama` | $0, minutes | the whole stack end-to-end |
 | paid live | `acceptance/run.py gemini` → `gemini-flash [--suite museum --n 3]` | cents | response *quality*; museum = judgment |
 
-Both offline and live must be green to close a stage; the hold-out museum task is
-touched **only** at stage close. When a live task fails, follow the triage order in
-the **debug-live** skill: verifier → harness → config → model, in that order —
-the harness must stay boring (constitution §5).
+Both offline and live must be green to close a stage; the hold-out museum task is touched **only** at stage close. When a live task fails, follow the triage order in the **debug-live** skill: verifier → harness → config → model, in that order — the harness must stay boring (constitution §5).
 
 ## Where to write things down
 
