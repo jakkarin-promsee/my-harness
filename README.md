@@ -1,4 +1,4 @@
-# researcher-harness
+# my-harness
 
 A from-scratch agent harness for learning how coding agents work: the model loop, tools, permissions, context, prompts, sessions, and provider adapters are built here rather than hidden behind an agent SDK. It is a personal learning project and an independent harness with local and API model lanes.
 
@@ -86,7 +86,7 @@ The bundled `harness.toml` starts a DuckDuckGo MCP search server through `uvx` o
 | Adjust reasoning effort              | `/think off\|on\|low\|medium\|high`      | Requests a supported thinking setting from the active model; support varies by provider and model.                                                   |
 | Adjust narration                     | `/voice quiet\|normal\|explain`          | Changes how much the agent talks while it works.                                                                                                     |
 | Inspect or reduce context            | `/tokens` and `/compact`                 | Shows estimated context use, or summarizes and replaces older conversation content. Automatic compaction also runs at a provider-specific threshold. |
-| Set the local context window         | `OLLAMA_CONTEXT_LENGTH` before launch   | Sets the harness's Ollama window estimate; configure the Ollama server to match. Defaults to 4,096.                                                  |
+| Set the local context window         | `OLLAMA_CONTEXT_LENGTH` before launch    | Sets the harness's Ollama window estimate; configure the Ollama server to match. Defaults to 4,096.                                                  |
 | Continue work                        | `--sessions` and `--resume [ID]`         | Lists or replays JSONL session journals.                                                                                                             |
 | Run one task for a script            | `-p "TASK"`                              | Runs one turn and returns only the final answer on stdout.                                                                                           |
 | Inspect external tools               | `/mcp`                                   | Lists connected MCP servers and their mounted tools.                                                                                                 |
@@ -136,17 +136,17 @@ assistant: "This is the agent loop..."
 
 ### Tools available to the agent
 
-| Tool | What the agent gets back |
-| --- | --- |
-| `list_dir`, `glob`, `grep` | A bounded map of directory entries, matching paths, or text hits; search skips noisy folders such as `.git` and `.venv`. |
-| `read_file` | A line-numbered, pageable excerpt with a header and a hint for reading the next page. |
-| `write_file`, `edit_file` | A write receipt or an exact-string replacement receipt; `edit_file` refuses missing or repeated matches, and approval prompts show a diff. |
-| `run_shell` | Exit code plus stdout and stderr, with a 60-second command timeout. |
-| `web_fetch` | Readable text extracted from a fetched page; network access goes through the permission gate. |
-| `todo_write` | An external task list the model can update and revisit instead of relying on conversation memory alone. |
-| `ask_user` | The human's answer as a tool result in the same agent turn; a scripted run can use a flagged recommended default. |
-| `spawn_subagent` | A child loop's final answer; `fresh` starts with a clean prompt and `fork` copies the parent conversation. |
-| `mcp__server__tool` | A result from a configured MCP server, mounted into the same registry and permission system as built-in tools. |
+| Tool                       | What the agent gets back                                                                                                                   |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `list_dir`, `glob`, `grep` | A bounded map of directory entries, matching paths, or text hits; search skips noisy folders such as `.git` and `.venv`.                   |
+| `read_file`                | A line-numbered, pageable excerpt with a header and a hint for reading the next page.                                                      |
+| `write_file`, `edit_file`  | A write receipt or an exact-string replacement receipt; `edit_file` refuses missing or repeated matches, and approval prompts show a diff. |
+| `run_shell`                | Exit code plus stdout and stderr, with a 60-second command timeout.                                                                        |
+| `web_fetch`                | Readable text extracted from a fetched page; network access goes through the permission gate.                                              |
+| `todo_write`               | An external task list the model can update and revisit instead of relying on conversation memory alone.                                    |
+| `ask_user`                 | The human's answer as a tool result in the same agent turn; a scripted run can use a flagged recommended default.                          |
+| `spawn_subagent`           | A child loop's final answer; `fresh` starts with a clean prompt and `fork` copies the parent conversation.                                 |
+| `mcp__server__tool`        | A result from a configured MCP server, mounted into the same registry and permission system as built-in tools.                             |
 
 The model can request these tools only when its mode advertises them, and every requested call still passes the active policy. `build` asks before writes, shell commands, web fetches, and subagents; `auto` allows writes inside the working directory but still asks for shell and network actions; `explore` allows local inspection and asks before a web fetch. `-y` upgrades `ask`, never `deny`. See the [full tool map](src/harness/tools/README.md) and [permission design](docs/GUIDEBOOK.md#modes--how-much-can-it-touch).
 
