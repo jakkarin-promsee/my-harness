@@ -182,3 +182,7 @@ The packaged harness is release 1. The Stage 0–2 learning work, Stage 2C cogni
 | Inspect the current plan and unfinished work | [ROADMAP4](docs/ROADMAP4.md) and [open problems](docs/problem.md) |
 | Run the offline or live validation suites    | [Tests](tests/README.md) and [acceptance](acceptance/README.md)   |
 | See the frozen first-stage learning artifact | [`archive/mvp/`](archive/mvp/)                                    |
+
+## License
+
+Original code and documentation authored by Jakkarin Promsee are licensed under the [MIT License](LICENSE). Third-party code, assets, datasets, and other materials are not covered by this license; their original terms apply.
